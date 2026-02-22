@@ -39,3 +39,21 @@ All AI agents must strictly adhere to the following engineering principles:
 - **Scope:** \`infra/\` directory, Docker, Vault CLI, Rego (OPA).
 - **Core Competencies:** Infrastructure as Code, Container Networking, PKI lifecycle management.
 - **Directives:** Prioritize security best practices (e.g., least privilege, non-root users). Ensure initialization scripts are idempotent and fail-safe (\`set -e\`). Suggest observability hooks (Prometheus/Grafana) for new infrastructure components.
+
+## 4. Technical Architecture Overview
+
+### Network Topology & Ports
+
+- **:8443** - Go Data Plane (Inbound mTLS Proxy).
+- **:8080** - Target Application (Unencrypted local traffic).
+- **:8081** - Java Control Plane (REST API / Identity Provider).
+- **:8200** - HashiCorp Vault (PKI Engine).
+- **:8181** - Open Policy Agent (Rego Policy Engine).
+
+### Request Lifecycle (The Zero Trust Flow)
+
+1. **Identity Provisioning (Bootstrapping):** The Go Proxy initializes and sends an Identity Request to the Java Control Plane (\`POST :8081/api/v1/identity/issue\`). Java validates the request, queries Vault for a short-lived certificate, and returns the cryptographic bundle to Go.
+2. **mTLS Handshake:** An external client initiates a TLS 1.3 connection to the Go Proxy (:8443). The Proxy strictly enforces client certificate validation (\`tls.RequireAndVerifyClientCert\`).
+3. **Authorization (Policy Check):** The Proxy extracts the Client's Subject Alternative Name (SAN) from the certificate, pauses the request, and queries the Java Control Plane. Java delegates rule evaluation to OPA to determine if the specific route and method are permitted for that identity.
+4. **Local Forwarding:** Upon successful authorization, the Go Proxy terminates the mTLS tunnel and proxies the raw HTTP request to the isolated Target Application (:8080) via loopback.
+5. **Hitless Rotation:** A background goroutine inside the Go Proxy continuously monitors its own certificate's Time-To-Live (TTL). Shortly before expiration, it fetches a new certificate from the Control Plane and atomically swaps the \`tls.Certificate\` reference without dropping active TCP connections.
