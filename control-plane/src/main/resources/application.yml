@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: sentinel-control-plane
+  cloud:
+    vault:
+      uri: http://127.0.0.1:8200
+      token: root
+      kv:
+        enabled: false
+server:
+  port: 8081

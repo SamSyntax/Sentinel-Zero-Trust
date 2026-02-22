@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -28,19 +29,25 @@ func loadIdentity(filePath string) (tls.Certificate, error) {
 	if err := json.Unmarshal(bytes, &bundle); err != nil {
 		return tls.Certificate{}, err
 	}
+
 	return tls.X509KeyPair([]byte(bundle.Data.Certificate), []byte(bundle.Data.PrivateKey))
 }
 
 func main() {
-	caCert, err := os.ReadFile("../certs/root_ca.crt")
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.Fatalf("Failed to read Root CA: %v", err)
+		log.Fatalf("Failed to get user home dir: %v\n", err)
+	}
+	certDirPath := fmt.Sprintf("%s/Documents/FinalProject/sentinel-zt/certs/", homeDir)
+	caCert, err := os.ReadFile(certDirPath + "root_ca.crt")
+	if err != nil {
+		log.Fatalf("Failed to read Root CA: %v\n", err)
 	}
 
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	proxyCert, err := loadIdentity("../certs/proxy-bundle.json")
+	proxyCert, err := loadIdentity(certDirPath + "proxy-bundle.json")
 	if err != nil {
 		log.Fatalf("Failed to load Proxy identity: %v", err)
 	}
