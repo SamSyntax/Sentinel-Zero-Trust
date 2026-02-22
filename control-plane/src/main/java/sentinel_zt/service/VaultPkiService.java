@@ -1,10 +1,11 @@
 package sentinel_zt.service;
 
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
-import org.springframework.vault.core.VaultPkiOperations;
 import org.springframework.vault.core.VaultTemplate;
-import org.springframework.vault.support.VaultCertificateRequest;
-import org.springframework.vault.support.VaultCertificateResponse;
+import org.springframework.vault.support.VaultResponse;
+
 import sentinel_zt.dto.IdentityResponse;
 
 @Service
@@ -17,23 +18,20 @@ public class VaultPkiService {
   }
 
   public IdentityResponse issueCertificate(String serviceName) {
-    VaultPkiOperations pkiOps = vaultTemplate.opsForPki("pki");
+    Map<String,Object> request = Map.of(
+        "common_name", serviceName + ".sentinel.local",
+        "ttl", "60m"
+        );
+    VaultResponse response = vaultTemplate.write("pki/issue/sentinel-service", request);
+    Map<String, Object> data = response.getData();
 
-    VaultCertificateRequest request = VaultCertificateRequest.builder()
-        .commonName(serviceName + ".sentinel.local")
-        .ttl(java.time.Duration.ofHours(72))
-        .build();
-
-    VaultCertificateResponse response = pkiOps.issueCertificate(
-        "sentinel-service",
-        request);
 
 
     return IdentityResponse.builder()
-        .certificate(response.getData().getCertificate())
-        .privateKey(response.getData().getPrivateKey())
-        .issuingCa(response.getData().getIssuingCaCertificate())
-        .serialNumber(response.getData().getSerialNumber())
+        .certificate((String) data.get("certificate"))
+        .privateKey((String) data.get("private_key"))
+        .issuingCa((String) data.get("issuing_ca"))
+        .serialNumber((String) data.get("serial_number"))
         .build();
   }
 
