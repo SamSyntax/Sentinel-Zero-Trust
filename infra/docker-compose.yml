@@ -1,0 +1,31 @@
+services:
+  vault:
+    restart: unless-stopped
+    privileged: true
+    image: hashicorp/vault:1.15
+    container_name: sentinel-vault
+    ports:
+      - "8200:8200"
+      - "443:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      VAULT_API_ADDR: http://127.0.0.1:8200
+      VAULT_ADDR: http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - /var/services/vault/audit:/vault/audit
+      - /var/services/vault/config:/vault/config
+      - /var/services/vault/data:/vault/data
+      - /var/services/vault/file:/vault/file
+      - /var/services/vault/logs:/vault/logs
+      - /var/services/vault/userconfig:/vault/userconfig
+      - /var/services/vault/plugins:/vault/plugins
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt
+  opa:
+    image: openpolicyagent/opa:0.36.0-rootless
+    container_name: sentinel-opa
+    ports:
+      - "8181:8181"
+    command: "run --server --log-level debug"
