@@ -1,3 +1,5 @@
 certs/
 data-plane/bin
 *.env*
+volumes/
+*/logs/**/*.log

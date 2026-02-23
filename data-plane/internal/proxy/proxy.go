@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -50,16 +49,20 @@ func startCertificateRotation(serviceName string, ctx context.Context, logger *s
 		}
 
 		logger.InfoContext(ctx, "rotation scheduled", slog.String("service", serviceName), slog.String("renewal_time", renewTime.Local().Format(time.ANSIC)))
-		time.Sleep(sleepDuration)
-		logger.InfoContext(ctx, "rotating certificate", slog.String("service", serviceName))
-		newCert, err := fetchIdentity(serviceName)
-		if err != nil {
-			slog.ErrorContext(ctx, "rotation failed", slog.String("error", err.Error()), slog.String("service", serviceName))
-			continue
+		select {
+		case <-time.After(sleepDuration):
+			logger.InfoContext(ctx, "rotating certificate", slog.String("service", serviceName))
+			newCert, err := fetchIdentity(serviceName)
+			if err != nil {
+				logger.ErrorContext(ctx, "rotation failed", slog.String("error", err.Error()), slog.String("service", serviceName))
+				continue
+			}
+			certMutex.Lock()
+			currentCert = newCert
+			certMutex.Unlock()
+		case <-ctx.Done():
+			return
 		}
-		certMutex.Lock()
-		currentCert = newCert
-		certMutex.Unlock()
 	}
 }
 
@@ -88,7 +91,9 @@ func fetchIdentity(serviceName string) (tls.Certificate, error) {
 
 }
 
-func Run(ctx context.Context, logger *slog.Logger) {
+func Run(ctx context.Context, logger *slog.Logger, logFile *os.File) {
+	slog.SetDefault(logger)
+	w := slog.NewLogLogger(logger.Handler(), slog.LevelError)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to get user home dir", slog.String("error", err.Error()))
@@ -111,32 +116,50 @@ func Run(ctx context.Context, logger *slog.Logger) {
 
 	go startCertificateRotation("proxy", ctx, logger)
 
-	tlsConfig := &tls.Config{
-		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			certMutex.RLock()
-			defer certMutex.RUnlock()
-			return &currentCert, nil
-		},
-		ClientCAs:  caCertPool,
-		ClientAuth: tls.RequireAndVerifyClientCert,
-		MinVersion: tls.VersionTLS13,
-	}
-
 	targetURL, _ := url.Parse("http://localhost:8080")
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
-
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		logger.ErrorContext(r.Context(), "proxy_upstream_error",
+			slog.String("error", err.Error()),
+			slog.String("backend_url", targetURL.String()),
+			slog.String("client_ip", r.RemoteAddr),
+		)
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
+			w.WriteHeader(http.StatusUnauthorized)
+		} else {
+			w.WriteHeader(http.StatusBadGateway)
+		}
+	}
 	mTLSHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if len(r.TLS.PeerCertificates) > 0 {
+		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
 			clientName := r.TLS.PeerCertificates[0].Subject.CommonName
-			logger.InfoContext(ctx, "allow request", slog.String("service", clientName))
+			logger.InfoContext(r.Context(), "mTLS request allowed",
+				slog.String("client_cn", clientName),
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path))
 		}
 		proxy.ServeHTTP(w, r)
-	})
 
+	})
 	server := &http.Server{
-		Addr:    ":8443",
-		Handler: mTLSHandler,
+		Addr:     ":8443",
+		Handler:  mTLSHandler,
+		ErrorLog: w,
+		TLSConfig: &tls.Config{
+			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				certMutex.RLock()
+				defer certMutex.RUnlock()
+				return &currentCert, nil
+			},
+			ClientCAs:  caCertPool,
+			ClientAuth: tls.RequireAndVerifyClientCert,
+			MinVersion: tls.VersionTLS13,
+		},
 	}
+	proxy.ErrorLog = w
+	server.ErrorLog = w
+
+	logger.InfoContext(ctx, "sentinel zt-proxy starting", slog.String("addr", server.Addr))
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -145,14 +168,12 @@ func Run(ctx context.Context, logger *slog.Logger) {
 		http.ListenAndServe(":8080", mux)
 	}()
 
-	log.Println("Sentinel ZT-Proxy listening on :8443 (mTLS enforced)")
-	listener, err := tls.Listen("tcp", server.Addr, tlsConfig)
+	listener, err := tls.Listen("tcp", server.Addr, server.TLSConfig)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to create TLS listener", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
-	slog.InfoContext(ctx, "sentinel zt-proxy listening", slog.String("address", server.Addr))
-	err = server.Serve(listener)
-	if err != nil {
+	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		logger.ErrorContext(ctx, "failed to serve", slog.String("error", err.Error()))
 		os.Exit(1)
 	}

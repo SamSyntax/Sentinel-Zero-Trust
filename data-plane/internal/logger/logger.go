@@ -2,8 +2,8 @@ package logger
 
 import (
 	"context"
+	"io"
 	"log/slog"
-	"os"
 )
 
 const (
@@ -36,8 +36,8 @@ func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	return h.Handler.Handle(ctx, r)
 }
 
-func InitLogger(cfg Config, queueSize int) (*slog.Logger, func()) {
-	asyncWriter := NewAsyncWriter(os.Stdout, queueSize)
+func InitLogger(cfg Config, out io.Writer, queueSize int) (*slog.Logger, func()) {
+	asyncWriter := NewAsyncWriter(out, queueSize)
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(cfg.Level)); err != nil {
 		level = slog.LevelInfo

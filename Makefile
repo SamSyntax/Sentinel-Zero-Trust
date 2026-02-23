@@ -18,3 +18,7 @@ run: build
 clean:
 	rm -rf $(DATA_PLANE_BUILD_DIR)
 
+docker:
+	docker compose -f infra/docker-compose.yml down && \
+	docker compose -f infra/docker-compose.yml up -d && \
+	infra/vault/init-pki.sh && infra/vault/init-proxyclient-certs.sh
