@@ -45,4 +45,5 @@ build-images: build-control-plane-image build-data-plane-image
 
 reload-pod-images: build-images
 
-
+refresh-dashboard:
+	infra/k8s/observability/refresh-dashboard.sh

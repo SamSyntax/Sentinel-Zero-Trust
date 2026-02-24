@@ -27,7 +27,7 @@ helm upgrade --install grafana grafana/grafana \
   --values "$DIR/grafana-values.yaml"
 
 echo "Applying Dashboard ConfigMap"
-kubectl apply -f "$DIR/dashboard.yaml" -n observability
+$DIR/refresh-dashboard.sh
 
 echo "Waiting for Pods..."
 kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=loki -n observability --timeout=120s

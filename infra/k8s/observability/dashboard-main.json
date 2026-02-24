@@ -307,7 +307,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "quantile_over_time(0.99, {container=\"proxy\"} | json | msg=\"rotating certificate\" | unwrap duration [5m])",
+          "expr": "max(quantile_over_time(0.99, {container=\"proxy\"} | json | msg=\"rotating certificate\" | unwrap duration [1m])) by (container)",
           "legendFormat": "P99 Latency",
           "queryType": "range",
           "refId": "A"
@@ -377,11 +377,7 @@
   "preload": false,
   "refresh": "5s",
   "schemaVersion": 42,
-  "tags": [
-    "sentinel-zt",
-    "kubernetes",
-    "mtls"
-  ],
+  "tags": ["sentinel-zt", "kubernetes", "mtls"],
   "templating": {
     "list": []
   },
@@ -395,3 +391,4 @@
   "uid": "sentinel-zt-prod",
   "version": 1
 }
+
