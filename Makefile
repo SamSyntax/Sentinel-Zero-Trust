@@ -12,8 +12,13 @@ build:
 	@mkdir -p $(DATA_PLANE_BUILD_DIR)
 	go build -o $(DATA_PLANE_BUILD_DIR)/$(DATA_PLANE_BINARY_NAME) ./data-plane/cmd
 
-run: build
+run-data-plane: build
 	./$(DATA_PLANE_BUILD_DIR)/$(DATA_PLANE_BINARY_NAME)
+
+run-control-plane:
+	cd control-plane && mvn spring-boot:run
+
+run: run-data-plane run-control-plane
 
 clean:
 	rm -rf $(DATA_PLANE_BUILD_DIR)

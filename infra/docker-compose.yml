@@ -24,12 +24,14 @@ services:
       - /var/services/vault/plugins:/vault/plugins
       - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt
   opa:
+    restart: unless-stopped
     image: openpolicyagent/opa:0.36.0-rootless
     container_name: sentinel-opa
     ports:
       - "8181:8181"
     command: "run --server --log-level debug"
   loki:
+    restart: unless-stopped
     image: grafana/loki:2.8.2
     container_name: sentinel-loki
     volumes:
@@ -37,6 +39,7 @@ services:
     ports:
       - "3100:3100"
   promtail:
+    restart: unless-stopped
     image: grafana/promtail:2.8.2
     container_name: sentinel-promtail
     volumes:
@@ -46,6 +49,7 @@ services:
     depends_on:
       - loki
   grafana:
+    restart: unless-stopped
     image: grafana/grafana:9.5.2
     container_name: sentinel-grafana
     volumes:

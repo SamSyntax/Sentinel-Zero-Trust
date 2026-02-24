@@ -26,9 +26,9 @@ func main() {
 		AppVersion:  "0.0.1",
 		ServiceName: "Control Plane",
 		Env:         env,
-	}, logFile, 5000)
+	}, os.Stdout, 5000)
 	defer cleanup()
 	ctx := context.WithValue(context.Background(), "trace_id", "tx_999")
 
-	proxy.Run(ctx, l, logFile)
+	proxy.Run(ctx, l)
 }

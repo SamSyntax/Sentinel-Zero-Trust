@@ -34,6 +34,11 @@ var (
 
 func startCertificateRotation(serviceName string, ctx context.Context, logger *slog.Logger) {
 	for {
+		if currentCert.Certificate == nil {
+			logger.ErrorContext(ctx, "rotation failed", slog.String("error", "no certificate found"), slog.String("service", serviceName))
+			time.Sleep(time.Minute * 1)
+			continue
+		}
 		certMutex.RLock()
 		leaf, err := x509.ParseCertificate(currentCert.Certificate[0])
 		certMutex.RUnlock()
@@ -91,15 +96,14 @@ func fetchIdentity(serviceName string) (tls.Certificate, error) {
 
 }
 
-func Run(ctx context.Context, logger *slog.Logger, logFile *os.File) {
+func Run(ctx context.Context, logger *slog.Logger) {
 	slog.SetDefault(logger)
 	w := slog.NewLogLogger(logger.Handler(), slog.LevelError)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		logger.ErrorContext(ctx, "failed to get user home dir", slog.String("error", err.Error()))
+	caPath := os.Getenv("CA_CERT_PATH")
+	if caPath == "" {
+		caPath = "../certs/root_ca.crt"
 	}
-	certDirPath := fmt.Sprintf("%s/Documents/FinalProject/sentinel-zt/certs/", homeDir)
-	caCert, err := os.ReadFile(certDirPath + "root_ca.crt")
+	caCert, err := os.ReadFile(caPath)
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to read Root CA", slog.String("error", err.Error()))
 	}
@@ -116,7 +120,11 @@ func Run(ctx context.Context, logger *slog.Logger, logFile *os.File) {
 
 	go startCertificateRotation("proxy", ctx, logger)
 
-	targetURL, _ := url.Parse("http://localhost:8080")
+	targetStr := os.Getenv("TARGET_URL")
+	if targetStr == "" {
+		targetStr = "http://localhost:8080"
+	}
+	targetURL, _ := url.Parse(targetStr)
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		logger.ErrorContext(r.Context(), "proxy_upstream_error",
@@ -159,14 +167,8 @@ func Run(ctx context.Context, logger *slog.Logger, logFile *os.File) {
 	proxy.ErrorLog = w
 	server.ErrorLog = w
 
+	go testService(logger)
 	logger.InfoContext(ctx, "sentinel zt-proxy starting", slog.String("addr", server.Addr))
-	go func() {
-		mux := http.NewServeMux()
-		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("Target application reached successfully.\n"))
-		})
-		http.ListenAndServe(":8080", mux)
-	}()
 
 	listener, err := tls.Listen("tcp", server.Addr, server.TLSConfig)
 	if err != nil {
@@ -176,5 +178,16 @@ func Run(ctx context.Context, logger *slog.Logger, logFile *os.File) {
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		logger.ErrorContext(ctx, "failed to serve", slog.String("error", err.Error()))
 		os.Exit(1)
+	}
+}
+
+func testService(l *slog.Logger) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Target application reached successfully.\n"))
+	})
+	err := http.ListenAndServe(":8080", mux)
+	if err != nil {
+		l.ErrorContext(context.Background(), "failed to serve", slog.String("error", err.Error()))
 	}
 }
