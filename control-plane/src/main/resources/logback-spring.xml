@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service_name":"Control Plane", "env":"kind-local"}</customFields>
+            
+            <fieldNames>
+                <timestamp>time</timestamp>
+                <message>msg</message>
+                <level>level</level>
+                <logger>logger</logger>
+                <thread>thread</thread>
+            </fieldNames>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.springframework.vault" level="DEBUG"/>
+</configuration>

@@ -27,3 +27,22 @@ docker:
 	docker compose -f infra/docker-compose.yml down && \
 	docker compose -f infra/docker-compose.yml up -d && \
 	infra/vault/init-pki.sh && infra/vault/init-proxyclient-certs.sh
+
+recreate-cluster:
+	infra/k8s/recreate-cluster.sh
+
+build-control-plane-image:
+	docker build -t "sentinel-control-plane:latest" control-plane/
+	kind load docker-image sentinel-control-plane:latest --name sentinel-zt
+	kubectl rollout restart deployment/sentinel-control-plane
+
+build-data-plane-image:
+	docker build -t "sentinel-data-plane:latest" data-plane/
+	kind load docker-image sentinel-data-plane:latest --name sentinel-zt
+	kubectl rollout restart deployment/sentinel-data-plane
+
+build-images: build-control-plane-image build-data-plane-image
+
+reload-pod-images: build-images
+
+

@@ -18,7 +18,7 @@ kubectl exec vault-0 -- sh -c '
     ttl=87600h > /tmp/root_ca.crt
 
   vault write pki/roles/sentinel-service \
-    allowed_domains="sentinel-zt" \
+    allowed_domains="sentinel.local,sentinel-zt" \
     allow_subdomains=true \
     max_ttl="72h" \
     generate_lease=true

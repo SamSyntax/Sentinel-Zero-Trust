@@ -53,11 +53,15 @@ func startCertificateRotation(serviceName string, ctx context.Context, logger *s
 			sleepDuration = 10 * time.Second
 		}
 
-		logger.InfoContext(ctx, "rotation scheduled", slog.String("service", serviceName), slog.String("renewal_time", renewTime.Local().Format(time.ANSIC)))
+		logger.InfoContext(ctx, "rotation scheduled",
+			slog.String("service", serviceName),
+			slog.Time("renewal_time", renewTime))
 		select {
 		case <-time.After(sleepDuration):
-			logger.InfoContext(ctx, "rotating certificate", slog.String("service", serviceName))
+			start := time.Now()
 			newCert, err := fetchIdentity(serviceName)
+			duration := time.Since(start)
+			logger.InfoContext(ctx, "rotating certificate", slog.String("service", serviceName), slog.Duration("duration", duration))
 			if err != nil {
 				logger.ErrorContext(ctx, "rotation failed", slog.String("error", err.Error()), slog.String("service", serviceName))
 				continue
@@ -77,7 +81,12 @@ func fetchIdentity(serviceName string) (tls.Certificate, error) {
 		return tls.Certificate{}, fmt.Errorf("Failed to marshal request: %v\n", err)
 	}
 
-	resp, err := http.Post("http://localhost:8081/api/v1/identity/issue", "application/json", bytes.NewBuffer(reqBody))
+	cpURL := os.Getenv("CONTROL_PLANE_URL")
+	if cpURL == "" {
+		cpURL = "http://localhost:8081"
+	}
+
+	resp, err := http.Post(cpURL+"/api/v1/identity/issue", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("Failed to issue identity: %v\n", err)
 	}

@@ -1,0 +1,27 @@
+adminPassword: admin
+disable_initial_admin_password_change: true
+service:
+  type: NodePort
+  nodePort: 30000
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: ALL
+  datasources:
+    enabled: true
+    label: grafana_datasource
+    labelValue: "1"
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        url: http://loki.observability.svc.cluster.local:3100
+        access: proxy
+        isDefault: true
+        jsonData:
+          maxLines: 20000

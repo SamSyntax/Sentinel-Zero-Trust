@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-control-plane
+  labels:
+    app: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: control-plane
+  template:
+    metadata:
+      labels:
+        app: control-plane
+    spec:
+      containers:
+        - name: java-api
+          image: sentinel-control-plane:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8081
+          env:
+            - name: SPRING_CLOUD_VAULT_URI
+              value: "http://vault-internal.default.svc.cluster.local:8200"
+            - name: SPRING_CLOUD_VAULT_TOKEN
+              value: "root"
+            - name: SPRING_MAIN_BANNER_MODE
+              value: "OFF"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-control-plane
+spec:
+  selector:
+    app: control-plane
+  ports:
+    - protocol: TCP
+      port: 8081
+      targetPort: 8081

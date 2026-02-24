@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sentinel-zt-dashboard
+  namespace: observability
+  labels:
+    grafana_dashboard: "1"
+data:
+  sentinel-main.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "title": "Data Plane: mTLS Error Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "expr": "sum(count_over_time({container=\"proxy\"} | json | level=\"ERROR\" [5m]))",
+              "legendFormat": "Errors (Proxy)",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "color": { "mode": "fixed", "fixedColor": "red" }
+            }
+          }
+        },
+        {
+          "title": "Control Plane: Vault Status",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "expr": "sum(count_over_time({container=\"java-api\"} | json | level=\"INFO\" [1m]))",
+              "legendFormat": "Cert Issued",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "expr": "sum(count_over_time({container=\"java-api\"} | json | level=\"ERROR\" [1m]))",
+              "legendFormat": "Vault Fail",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "title": "Rotation Latency (P99)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "expr": "quantile_over_time(0.99, {container=\"proxy\"} | json | msg=\"rotating certificate\" | unwrap duration_nanoseconds(`duration`) [5m])",
+              "legendFormat": "P99 Latency",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "ns" }
+          }
+        },
+        {
+          "title": "Live Log Stream",
+          "type": "logs",
+          "gridPos": { "h": 14, "w": 24, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "expr": "{container=~\"java-api|proxy\"} | json",
+              "refId": "A"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "extractFields",
+              "options": { "format": "json", "source": "Line" }
+            },
+            {
+              "id": "convertFieldType",
+              "options": {
+                "fields": {
+                  "renewal_time": {
+                    "destinationType": "time",
+                    "dateFormat": "YYYY-MM-DDTHH:mm:ssZ"
+                  }
+                }
+              }
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "timezone": "browser",
+            "prettifyLogMessage": true
+          }
+        }
+      ],
+      "refresh": "5s",
+      "schemaVersion": 39,
+      "tags": ["sentinel-zt", "kubernetes", "mtls"],
+      "timezone": "browser",
+      "title": "Sentinel ZT: Production Health",
+      "uid": "sentinel-zt-prod"
+    }

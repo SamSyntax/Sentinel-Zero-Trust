@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-data-plane
+  labels:
+    app: data-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: data-plane
+  template:
+    metadata:
+      labels:
+        app: data-plane
+    spec:
+      containers:
+        - name: proxy
+          image: sentinel-data-plane:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8443
+          env:
+            - name: CONTROL_PLANE_URL
+              value: "http://sentinel-control-plane.default.svc.cluster.local:8081"
+            - name: ENV
+              value: "kind-local"
+            - name: CA_CERT_PATH
+              value: "/etc/certs/root_ca.crt"
+          volumeMounts:
+            - name: vault-ca-volume
+              mountPath: "/etc/certs"
+              readOnly: true
+      volumes:
+        - name: vault-ca-volume
+          secret:
+            secretName: sentinel-root-ca
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentinel-data-plane
+spec:
+  type: NodePort
+  selector:
+    app: data-plane
+  ports:
+    - protocol: TCP
+      port: 8443
+      targetPort: 8443
+      nodePort: 30443

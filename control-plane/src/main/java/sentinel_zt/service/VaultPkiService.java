@@ -20,7 +20,7 @@ public class VaultPkiService {
   public IdentityResponse issueCertificate(String serviceName) {
     Map<String,Object> request = Map.of(
         "common_name", serviceName + ".sentinel.local",
-        "ttl", "60m"
+        "ttl", "5m"
         );
     VaultResponse response = vaultTemplate.write("pki/issue/sentinel-service", request);
     Map<String, Object> data = response.getData();
