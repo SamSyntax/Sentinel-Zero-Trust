@@ -36,6 +36,8 @@ func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	return h.Handler.Handle(ctx, r)
 }
 
+var GlobalLogger *slog.Logger
+
 func InitLogger(cfg Config, out io.Writer, queueSize int) (*slog.Logger, func()) {
 	asyncWriter := NewAsyncWriter(out, queueSize)
 	var level slog.Level
@@ -59,6 +61,7 @@ func InitLogger(cfg Config, out io.Writer, queueSize int) (*slog.Logger, func())
 		slog.String("env", cfg.Env),
 		slog.String("service_name", cfg.ServiceName),
 	)
+	GlobalLogger = logger
 	return logger, func() { asyncWriter.Close() }
 
 }

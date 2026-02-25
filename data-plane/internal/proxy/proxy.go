@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	gl "sentinel-zt/data-plane/internal/logger"
 	"sync"
 	"time"
 )
@@ -31,6 +33,19 @@ var (
 	certMutex   sync.RWMutex
 	currentCert tls.Certificate
 )
+
+type ServiceAccountToken string
+
+var ServiceAccountTokenValue ServiceAccountToken
+
+func GetServiceAccountToken() {
+	file, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+	if err != nil {
+		gl.GlobalLogger.ErrorContext(context.WithValue(context.Background(), "trace_id", "tx_999"), "failed to get pod service account token", slog.String("error", err.Error()), slog.String("caller", "getServiceAccountToken()"))
+		os.Exit(1)
+	}
+	ServiceAccountTokenValue = ServiceAccountToken(file)
+}
 
 func startCertificateRotation(serviceName string, ctx context.Context, logger *slog.Logger) {
 	for {
@@ -76,6 +91,7 @@ func startCertificateRotation(serviceName string, ctx context.Context, logger *s
 }
 
 func fetchIdentity(serviceName string) (tls.Certificate, error) {
+	gl.GlobalLogger.InfoContext(context.Background(), "Fetching cert", slog.String("ServiceAccountToken", string(ServiceAccountTokenValue)), slog.String("caller", "fetchIdentity()"))
 	reqBody, err := json.Marshal(IdentityRequest{ServiceName: serviceName})
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("Failed to marshal request: %v\n", err)
@@ -106,6 +122,7 @@ func fetchIdentity(serviceName string) (tls.Certificate, error) {
 }
 
 func Run(ctx context.Context, logger *slog.Logger) {
+	GetServiceAccountToken()
 	slog.SetDefault(logger)
 	w := slog.NewLogLogger(logger.Handler(), slog.LevelError)
 	caPath := os.Getenv("CA_CERT_PATH")
@@ -190,10 +207,30 @@ func Run(ctx context.Context, logger *slog.Logger) {
 	}
 }
 
+func getHostAddress() string {
+	var ip net.IP
+	ifaces, _ := net.Interfaces()
+	for _, a := range ifaces {
+		addrs, _ := a.Addrs()
+		for _, addr := range addrs {
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			default:
+				ip = net.IPv4(byte('1'), byte('2'), byte('3'), byte('4'))
+			}
+		}
+	}
+	return ip.To4().String()
+}
+
 func testService(l *slog.Logger) {
 	mux := http.NewServeMux()
+	ip := getHostAddress()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Target application reached successfully.\n"))
+		fmt.Fprintf(w, "Target application %s reached successfully.\n", ip)
 	})
 	err := http.ListenAndServe(":8080", mux)
 	if err != nil {

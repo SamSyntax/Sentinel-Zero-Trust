@@ -1,0 +1,18 @@
+image:
+  repository: sentinel-control-plane
+  tag: "latest"
+  pullPolicy: Never
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  name: "sentinel-control-plane"
+
+vault:
+  uri: "http://vault-internal.default.svc.cluster.local:8200"
+
+containers:
+  name: sentinel-control-plane
+  port: 8081
