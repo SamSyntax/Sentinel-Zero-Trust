@@ -20,7 +20,7 @@ func main() {
 		IsJSON:      true,
 		AddSource:   false,
 		AppVersion:  "0.0.1",
-		ServiceName: "Control Plane",
+		ServiceName: "Data Plane",
 		Env:         env,
 	}, os.Stdout, 5000)
 	GlobalLogger = l

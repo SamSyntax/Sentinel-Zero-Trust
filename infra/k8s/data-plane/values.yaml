@@ -1,0 +1,21 @@
+image:
+  repository: sentinel-data-plane
+  tag: "latest"
+  pullPolicy: Never
+
+serviceAccount:
+  create: true
+  name: "sentinel-data-plane"
+
+controlPlane:
+  serviceName: sentinel-control-plane
+  namespace: sentinel-control-plane
+  port: 8081
+caSecretName: sentinel-root-ca
+
+service:
+  type: NodePort
+  port: 8443
+  nodePort: 30443
+
+fullnameOverride: "sentinel-data-plane"

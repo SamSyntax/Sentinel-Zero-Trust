@@ -22,7 +22,7 @@ spec:
             - containerPort: 8443
           env:
             - name: CONTROL_PLANE_URL
-              value: "http://sentinel-control-plane.default.svc.cluster.local:8081"
+              value: "http://sentinel-control-plane.sentinel-control-plane.svc.cluster.local:8081/api/v1/identity/issue"
             - name: ENV
               value: "kind-local"
             - name: CA_CERT_PATH

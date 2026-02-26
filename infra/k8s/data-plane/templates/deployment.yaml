@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sentinel-data.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "sentinel-data.labels" . | nindent 4 }} 
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "sentinel-data.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        timestamp: {{ now | quote }}
+      labels:
+        {{- include "sentinel-data.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "sentinel-data.serviceAccountName" . }}
+      containers:
+        - name: proxy
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8443 # this is for a mock service endpoint
+          env:
+            - name: CONTROL_PLANE_URL
+              value: {{ printf "http://%s.%s.svc.cluster.local:%d/api/v1/identity/issue" .Values.controlPlane.serviceName .Values.controlPlane.namespace (int .Values.controlPlane.port) | quote }}
+            - name: ENV
+              value: "kind-local"
+            - name: CA_CERT_PATH
+              value: "/etc/certs/root_ca.crt"
+          volumeMounts:
+            - name: vault-ca-volume
+              mountPath: "/etc/certs"
+              readOnly: true
+      volumes:
+        - name: vault-ca-volume
+          secret:
+            secretName: {{ .Values.caSecretName }}

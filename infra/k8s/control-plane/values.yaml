@@ -16,3 +16,8 @@ vault:
 containers:
   name: sentinel-control-plane
   port: 8081
+
+labels:
+  app: sentinel-control-plane
+
+fullnameOverride: "sentinel-control-plane"

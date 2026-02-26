@@ -50,7 +50,9 @@ func GetServiceAccountToken() {
 func startCertificateRotation(serviceName string, ctx context.Context, logger *slog.Logger) {
 	for {
 		if currentCert.Certificate == nil {
-			logger.ErrorContext(ctx, "rotation failed", slog.String("error", "no certificate found"), slog.String("service", serviceName))
+			cert, err := fetchIdentity(serviceName)
+			logger.ErrorContext(ctx, "initial cert rotation failed", slog.String("error", err.Error()), slog.String("service", serviceName))
+			currentCert = cert
 			time.Sleep(time.Minute * 1)
 			continue
 		}
@@ -91,7 +93,6 @@ func startCertificateRotation(serviceName string, ctx context.Context, logger *s
 }
 
 func fetchIdentity(serviceName string) (tls.Certificate, error) {
-	gl.GlobalLogger.InfoContext(context.Background(), "Fetching cert", slog.String("ServiceAccountToken", string(ServiceAccountTokenValue)), slog.String("caller", "fetchIdentity()"))
 	reqBody, err := json.Marshal(IdentityRequest{ServiceName: serviceName})
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("Failed to marshal request: %v\n", err)
@@ -99,10 +100,10 @@ func fetchIdentity(serviceName string) (tls.Certificate, error) {
 
 	cpURL := os.Getenv("CONTROL_PLANE_URL")
 	if cpURL == "" {
-		cpURL = "http://localhost:8081"
+		cpURL = "http://localhost:8081/api/v1/identity/issue"
 	}
 
-	resp, err := http.Post(cpURL+"/api/v1/identity/issue", "application/json", bytes.NewBuffer(reqBody))
+	resp, err := http.Post(cpURL, "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("Failed to issue identity: %v\n", err)
 	}

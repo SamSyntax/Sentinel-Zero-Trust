@@ -12,13 +12,15 @@ spec:
       {{- include "sentinel.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        timestamp: {{ now | quote }}
       labels:
         {{- include "sentinel.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "sentinel.serviceAccountName" . }}
       containers:
         - name: {{ .Values.containers.name  }}
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.containers.port }}

@@ -1,4 +1,4 @@
-{{- define "sentinel.fullname" -}}
+{{- define "sentinel-data.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -6,21 +6,21 @@
 {{- end -}}
 {{- end -}}
 
-{{- define "sentinel.labels" -}}
+{{- define "sentinel-data.labels" -}}
 helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
-{{ include "sentinel.selectorLabels" . }}
+{{ include "sentinel-data.selectorLabels" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
-{{- define "sentinel.selectorLabels" -}}
+{{- define "sentinel-data.selectorLabels" -}}
 app.kubernetes.io/name: {{ .Chart.Name }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{- define "sentinel.serviceAccountName" -}}
+{{- define "sentinel-data.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-  {{ default (include "sentinel.fullname" .) .Values.serviceAccount.name }}
+  {{ default (include "sentinel-data.fullname" .) .Values.serviceAccount.name }}
 {{- else -}}
   {{ default "default" .Values.serviceAccount.name}}
 {{- end -}}

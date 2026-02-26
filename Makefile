@@ -34,12 +34,18 @@ recreate-cluster:
 build-control-plane-image:
 	docker build -t "sentinel-control-plane:latest" control-plane/
 	kind load docker-image sentinel-control-plane:latest --name sentinel-zt
-	kubectl rollout restart deployment/sentinel-control-plane
+	helm upgrade --install control-plane infra/k8s/control-plane \
+		-n sentinel-control-plane --create-namespace \
+		--set rbac.create=true --set labels.app=control-plane
+	kubectl rollout restart deployment sentinel-control-plane -n sentinel-control-plane
 
 build-data-plane-image:
 	docker build -t "sentinel-data-plane:latest" data-plane/
 	kind load docker-image sentinel-data-plane:latest --name sentinel-zt
-	kubectl rollout restart deployment/sentinel-data-plane
+	helm upgrade --install data-plane infra/k8s/data-plane \
+  -n sentinel-data-plane --create-namespace \
+  --set serviceAccount.create=true --set service.nodePort=30443
+	kubectl rollout restart deployment sentinel-data-plane -n sentinel-data-plane
 
 build-images: build-control-plane-image build-data-plane-image
 
