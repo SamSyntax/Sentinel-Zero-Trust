@@ -2,8 +2,10 @@ package logger
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"sync"
+	"time"
 )
 
 type AsyncWriter struct {
@@ -29,20 +31,28 @@ func (aw *AsyncWriter) Write(p []byte) (n int, err error) {
 	case aw.buffer <- data:
 		return len(p), nil
 	default:
-		return len(p), nil
+		return 0, fmt.Errorf("async buffer overflow, dropped %d bytes", len(p))
 	}
 }
 
 func (aw *AsyncWriter) worker() {
 	defer aw.wg.Done()
 	bw := bufio.NewWriter(aw.inner)
-	for data := range aw.buffer {
-		_, _ = bw.Write(data)
-		if len(aw.buffer) == 0 {
+	flushTicker := time.NewTicker(100 * time.Millisecond)
+	defer flushTicker.Stop()
+
+	for {
+		select {
+		case data, ok := <-aw.buffer:
+			if !ok {
+				_ = bw.Flush()
+				return
+			}
+			_, _ = bw.Write(data)
+		case <-flushTicker.C:
 			_ = bw.Flush()
 		}
 	}
-	_ = bw.Flush()
 }
 
 func (aw *AsyncWriter) Close() {

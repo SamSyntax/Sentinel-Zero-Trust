@@ -13,6 +13,9 @@ controlPlane:
   port: 8081
 caSecretName: sentinel-root-ca
 
+containers:
+  name: sentinel-data-plane
+
 service:
   type: NodePort
   port: 8443

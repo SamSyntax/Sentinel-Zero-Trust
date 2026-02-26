@@ -4,21 +4,17 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"sentinel-zt/data-plane/internal/config"
 )
 
 const (
-	TraceIDKey = "trace_id"
-	ErrorKey   = "error"
+	TraceIDKey     = "trace_id"
+	RequestIDKey   = "request_id"
+	HttpMethodKey  = "http_method"
+	HttpUriKey     = "http_uri"
+	HttpRemoteAddr = "http_remote_addr"
+	ErrorKey       = "error"
 )
-
-type Config struct {
-	Level       string
-	IsJSON      bool
-	AddSource   bool
-	AppVersion  string
-	ServiceName string
-	Env         string
-}
 
 func WithTraceID(ctx context.Context, traceID string) context.Context {
 	return context.WithValue(ctx, TraceIDKey, traceID)
@@ -32,13 +28,25 @@ func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	if val, ok := ctx.Value(TraceIDKey).(string); ok {
 		r.AddAttrs(slog.String(TraceIDKey, val))
 	}
+	if val, ok := ctx.Value(RequestIDKey).(string); ok {
+		r.AddAttrs(slog.String(RequestIDKey, val))
+	}
+	if val, ok := ctx.Value(HttpMethodKey).(string); ok {
+		r.AddAttrs(slog.String(HttpMethodKey, val))
+	}
+	if val, ok := ctx.Value(HttpUriKey).(string); ok {
+		r.AddAttrs(slog.String(HttpUriKey, val))
+	}
+	if val, ok := ctx.Value(HttpRemoteAddr).(string); ok {
+		r.AddAttrs(slog.String(HttpRemoteAddr, val))
+	}
 
 	return h.Handler.Handle(ctx, r)
 }
 
 var GlobalLogger *slog.Logger
 
-func InitLogger(cfg Config, out io.Writer, queueSize int) (*slog.Logger, func()) {
+func InitLogger(cfg config.LoggerConfig, out io.Writer, queueSize int) (*slog.Logger, func()) {
 	asyncWriter := NewAsyncWriter(out, queueSize)
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(cfg.Level)); err != nil {
@@ -59,7 +67,7 @@ func InitLogger(cfg Config, out io.Writer, queueSize int) (*slog.Logger, func())
 	logger := slog.New(handler).With(
 		slog.String("version", cfg.AppVersion),
 		slog.String("env", cfg.Env),
-		slog.String("service_name", cfg.ServiceName),
+		slog.String("APP_NAME", cfg.ServiceName),
 	)
 	GlobalLogger = logger
 	return logger, func() { asyncWriter.Close() }

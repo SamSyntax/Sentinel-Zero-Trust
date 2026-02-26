@@ -1,5 +1,5 @@
 DATA_PLANE_BINARY_NAME=plane
-DATA_PLANE_BUILD_DIR=data-plane/bin
+DATA_PLANE_BUILD_DIR=data-plane
 
 .PHONY: all build clean run
 
@@ -12,16 +12,14 @@ build:
 	@mkdir -p $(DATA_PLANE_BUILD_DIR)
 	go build -o $(DATA_PLANE_BUILD_DIR)/$(DATA_PLANE_BINARY_NAME) ./data-plane/cmd
 
-run-data-plane: build
-	./$(DATA_PLANE_BUILD_DIR)/$(DATA_PLANE_BINARY_NAME)
 
 run-control-plane:
 	cd control-plane && mvn spring-boot:run
 
-run: run-data-plane run-control-plane
+run-data-plane: build
+	$(MAKE) -C $(DATA_PLANE_BUILD_DIR) all -j 
 
-clean:
-	rm -rf $(DATA_PLANE_BUILD_DIR)
+run: run-data-plane run-control-plane
 
 docker:
 	docker compose -f infra/docker-compose.yml down && \

@@ -1,12 +1,70 @@
 spring:
+  devtools.restart.enabled: false
   application:
     name: sentinel-control-plane
   cloud:
     vault:
       uri: http://127.0.0.1:8200
-      token: root
+      token: ${VAULT_TOKEN:root}
       kv:
         enabled: false
+
 server:
   port: 8081
   address: 0.0.0.0
+
+logging:
+  level:
+    root: INFO
+    sentinel_zt: DEBUG
+    org.springframework: WARN
+    org.springframework.web: INFO
+    org.springframework.security: INFO
+    org.springframework.vault: WARN
+    org.apache.hc: WARN
+    io.fabric8.kubernetes: WARN
+  environment: ${LOG_ENVIRONMENT:production}
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/sentinel-control-plane.json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,loggers
+  endpoint:
+    health:
+      show-details: always
+    loggers:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local,dev
+  cloud:
+    vault:
+      uri: http://vault:8200
+logging:
+  level:
+    sentinel_zt: DEBUG
+    org.springframework: INFO
+  environment: development
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+logging:
+  level:
+    sentinel_zt: INFO
+    org.springframework: WARN
+  environment: production

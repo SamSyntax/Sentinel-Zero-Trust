@@ -18,7 +18,7 @@ spec:
     spec:
       serviceAccountName: {{ include "sentinel-data.serviceAccountName" . }}
       containers:
-        - name: proxy
+        - name: {{ .Values.containers.name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:

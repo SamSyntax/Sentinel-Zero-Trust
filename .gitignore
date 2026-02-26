@@ -2,4 +2,8 @@ certs/
 data-plane/bin
 *.env*
 volumes/
-*/logs/**/*.log
+*/**/logs
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup

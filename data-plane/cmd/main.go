@@ -2,30 +2,44 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
+	"sentinel-zt/data-plane/internal/config"
 	"sentinel-zt/data-plane/internal/logger"
 	"sentinel-zt/data-plane/internal/proxy"
 )
 
-var GlobalLogger *slog.Logger
-
 func main() {
 	env := os.Getenv("ENV")
-	if env == "" {
-		env = "local"
+
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "Debug"
 	}
-	l, cleanup := logger.InitLogger(logger.Config{
-		Level:       "Info",
+
+	serviceName := os.Getenv("SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = "sentinel-data-plane"
+	}
+
+	ctx := context.WithValue(context.Background(), "APP_NAME", serviceName)
+	var loggerCfg config.LoggerConfig = config.LoggerConfig{
+		Level:       logLevel,
 		IsJSON:      true,
 		AddSource:   false,
 		AppVersion:  "0.0.1",
-		ServiceName: "Data Plane",
+		ServiceName: serviceName,
 		Env:         env,
-	}, os.Stdout, 5000)
-	GlobalLogger = l
+		Context:     ctx,
+	}
+	if env == "" {
+		env = "local"
+		loggerCfg.Env = env
+		config.GlobalConfig = config.CreateProxyConfig(8444, "proxy-local", loggerCfg)
+	} else {
+		config.GlobalConfig = config.CreateProxyConfig(8443, "proxy", loggerCfg)
+	}
+	_, cleanup := logger.InitLogger(loggerCfg, os.Stdout, 5000)
 	defer cleanup()
-	ctx := context.WithValue(context.Background(), "trace_id", "tx_999")
 
-	proxy.Run(ctx, l)
+	proxy.Run(ctx)
 }

@@ -27,7 +27,10 @@ spec:
           env:
             - name: SPRING_CLOUD_VAULT_URI
               value: {{ .Values.vault.uri | quote }}
-            - name: SPRING_CLOUD_VAULT_TOKEN
-              value: "root"
             - name: SPRING_MAIN_BANNER_MODE
               value: "OFF"
+            - name: SPRING_CLOUD_VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: control-plane-vault-conf
+                  key: vault-token

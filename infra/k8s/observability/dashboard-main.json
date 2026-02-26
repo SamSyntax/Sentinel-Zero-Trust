@@ -107,7 +107,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "sum(count_over_time({container=\"proxy\"} | json | level=\"ERROR\" [5m]))",
+          "expr": "sum(count_over_time({container=\"sentinel-data-plane\"} | json | level=\"ERROR\" [5m]))",
           "legendFormat": "Errors (Proxy)",
           "refId": "A"
         }
@@ -199,7 +199,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "sum(count_over_time({container=\"java-api\"} | json | level=\"INFO\" [1m]))",
+          "expr": "sum(count_over_time({container=\"sentinel-control-plane\"} | json | level=\"INFO\" [1m]))",
           "legendFormat": "Cert Issued",
           "refId": "A"
         },
@@ -208,7 +208,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "sum(count_over_time({container=\"java-api\"} | json | level=\"ERROR\" [1m]))",
+          "expr": "sum(count_over_time({container=\"sentinel-control-plane\"} | json | level=\"ERROR\" [1m]))",
           "legendFormat": "Vault Fail",
           "refId": "B"
         }
@@ -307,7 +307,7 @@
           },
           "direction": "backward",
           "editorMode": "code",
-          "expr": "max(quantile_over_time(0.99, {container=\"proxy\"} | json | msg=\"rotating certificate\" | unwrap duration [1m])) by (container)",
+          "expr": "max(quantile_over_time(0.99, {container=\"sentinel-data-plane\"} | json | msg=\"rotating certificate\" | unwrap duration [1m])) by (container)",
           "legendFormat": "P99 Latency",
           "queryType": "range",
           "refId": "A"
@@ -346,7 +346,7 @@
             "type": "loki",
             "uid": "Loki"
           },
-          "expr": "{container=~\"java-api|proxy\"} | json",
+          "expr": "{container=~\"sentinel-control-plane|sentinel-data-plane\"} | json",
           "refId": "A"
         }
       ],
@@ -391,4 +391,3 @@
   "uid": "sentinel-zt-prod",
   "version": 1
 }
-

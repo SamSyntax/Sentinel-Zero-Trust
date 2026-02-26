@@ -7,12 +7,15 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"sentinel-zt/data-plane/internal/config"
+	"sentinel-zt/data-plane/internal/logger"
 	gl "sentinel-zt/data-plane/internal/logger"
 	"sync"
 	"time"
@@ -31,7 +34,7 @@ type IdentityResponse struct {
 
 var (
 	certMutex   sync.RWMutex
-	currentCert tls.Certificate
+	currentCert *tls.Certificate
 )
 
 type ServiceAccountToken string
@@ -41,26 +44,30 @@ var ServiceAccountTokenValue ServiceAccountToken
 func GetServiceAccountToken() {
 	file, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
 	if err != nil {
-		gl.GlobalLogger.ErrorContext(context.WithValue(context.Background(), "trace_id", "tx_999"), "failed to get pod service account token", slog.String("error", err.Error()), slog.String("caller", "getServiceAccountToken()"))
-		os.Exit(1)
+		gl.GlobalLogger.WarnContext(context.Background(), "failed to get pod service account token, will retry", slog.String("error", err.Error()))
+		return
 	}
 	ServiceAccountTokenValue = ServiceAccountToken(file)
+	gl.GlobalLogger.InfoContext(context.Background(), "service account token loaded successfully")
 }
 
-func startCertificateRotation(serviceName string, ctx context.Context, logger *slog.Logger) {
+func startCertificateRotation(serviceName string, ctx context.Context) {
 	for {
 		if currentCert.Certificate == nil {
 			cert, err := fetchIdentity(serviceName)
-			logger.ErrorContext(ctx, "initial cert rotation failed", slog.String("error", err.Error()), slog.String("service", serviceName))
-			currentCert = cert
-			time.Sleep(time.Minute * 1)
-			continue
+			if err != nil {
+				gl.GlobalLogger.WarnContext(ctx, "initial certificate fetch failed, retrying", slog.String("error", err.Error()), slog.String("service", serviceName))
+				time.Sleep(time.Minute * 1)
+				continue
+			}
+			currentCert = &cert
+			gl.GlobalLogger.InfoContext(ctx, "initial certificate fetched", slog.String("service", serviceName))
 		}
 		certMutex.RLock()
 		leaf, err := x509.ParseCertificate(currentCert.Certificate[0])
 		certMutex.RUnlock()
 		if err != nil {
-			logger.ErrorContext(ctx, "rotation failed", slog.String("error", err.Error()), slog.String("service", serviceName))
+			gl.GlobalLogger.WarnContext(ctx, "failed to parse certificate, will re-fetch", slog.String("error", err.Error()), slog.String("service", serviceName))
 			time.Sleep(time.Minute * 1)
 			continue
 		}
@@ -70,21 +77,23 @@ func startCertificateRotation(serviceName string, ctx context.Context, logger *s
 			sleepDuration = 10 * time.Second
 		}
 
-		logger.InfoContext(ctx, "rotation scheduled",
+		gl.GlobalLogger.DebugContext(ctx, "certificate rotation scheduled",
 			slog.String("service", serviceName),
-			slog.Time("renewal_time", renewTime))
+			slog.Time("renewal_time", renewTime),
+			slog.Duration("sleep_duration", sleepDuration))
 		select {
 		case <-time.After(sleepDuration):
 			start := time.Now()
 			newCert, err := fetchIdentity(serviceName)
 			duration := time.Since(start)
-			logger.InfoContext(ctx, "rotating certificate", slog.String("service", serviceName), slog.Duration("duration", duration))
 			if err != nil {
-				logger.ErrorContext(ctx, "rotation failed", slog.String("error", err.Error()), slog.String("service", serviceName))
+				gl.GlobalLogger.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
+				time.Sleep(time.Minute * 1)
 				continue
 			}
+			gl.GlobalLogger.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.Duration("duration", duration))
 			certMutex.Lock()
-			currentCert = newCert
+			currentCert = &newCert
 			certMutex.Unlock()
 		case <-ctx.Done():
 			return
@@ -98,12 +107,27 @@ func fetchIdentity(serviceName string) (tls.Certificate, error) {
 		return tls.Certificate{}, fmt.Errorf("Failed to marshal request: %v\n", err)
 	}
 
-	cpURL := os.Getenv("CONTROL_PLANE_URL")
-	if cpURL == "" {
-		cpURL = "http://localhost:8081/api/v1/identity/issue"
+	cpURLstr := os.Getenv("CONTROL_PLANE_URL")
+	if cpURLstr == "" {
+		cpURLstr = "http://localhost:8081/api/v1/identity/issue"
+	}
+	cpURL, err := url.Parse(cpURLstr)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("Failed to parse control plane URL: %v\n", err)
 	}
 
-	resp, err := http.Post(cpURL, "application/json", bytes.NewBuffer(reqBody))
+	var headers http.Header = make(http.Header, 2)
+	headers.Add("Content-Type", "application/json")
+	headers.Add("X-Sentinel-Token", "Bearer "+string(ServiceAccountTokenValue))
+
+	req := http.Request{
+		Method: http.MethodPost,
+		URL:    cpURL,
+		Header: headers.Clone(),
+		Body:   io.NopCloser(bytes.NewBuffer(reqBody)),
+	}
+	var client http.Client
+	resp, err := client.Do(&req)
 	if err != nil {
 		return tls.Certificate{}, fmt.Errorf("Failed to issue identity: %v\n", err)
 	}
@@ -122,17 +146,17 @@ func fetchIdentity(serviceName string) (tls.Certificate, error) {
 
 }
 
-func Run(ctx context.Context, logger *slog.Logger) {
+func Run(ctx context.Context) {
 	GetServiceAccountToken()
-	slog.SetDefault(logger)
-	w := slog.NewLogLogger(logger.Handler(), slog.LevelError)
+	slog.SetDefault(gl.GlobalLogger)
+	w := slog.NewLogLogger(gl.GlobalLogger.Handler(), slog.LevelError)
 	caPath := os.Getenv("CA_CERT_PATH")
 	if caPath == "" {
 		caPath = "../certs/root_ca.crt"
 	}
 	caCert, err := os.ReadFile(caPath)
 	if err != nil {
-		logger.ErrorContext(ctx, "failed to read Root CA", slog.String("error", err.Error()))
+		gl.GlobalLogger.ErrorContext(ctx, "failed to read Root CA", slog.String("error", err.Error()))
 	}
 
 	caCertPool := x509.NewCertPool()
@@ -140,12 +164,12 @@ func Run(ctx context.Context, logger *slog.Logger) {
 
 	initialCert, err := fetchIdentity("proxy")
 	if err != nil {
-		logger.ErrorContext(ctx, "failed to fetch initial certificate", slog.String("error", err.Error()))
+		gl.GlobalLogger.ErrorContext(ctx, "failed to fetch initial certificate", slog.String("error", err.Error()))
 	}
 
-	currentCert = initialCert
+	currentCert = &initialCert
 
-	go startCertificateRotation("proxy", ctx, logger)
+	go startCertificateRotation("proxy", ctx)
 
 	targetStr := os.Getenv("TARGET_URL")
 	if targetStr == "" {
@@ -154,7 +178,7 @@ func Run(ctx context.Context, logger *slog.Logger) {
 	targetURL, _ := url.Parse(targetStr)
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		logger.ErrorContext(r.Context(), "proxy_upstream_error",
+		gl.GlobalLogger.ErrorContext(r.Context(), "proxy_upstream_error",
 			slog.String("error", err.Error()),
 			slog.String("backend_url", targetURL.String()),
 			slog.String("client_ip", r.RemoteAddr),
@@ -165,26 +189,25 @@ func Run(ctx context.Context, logger *slog.Logger) {
 			w.WriteHeader(http.StatusBadGateway)
 		}
 	}
-	mTLSHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	loggingHandler := logger.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
 			clientName := r.TLS.PeerCertificates[0].Subject.CommonName
-			logger.InfoContext(r.Context(), "mTLS request allowed",
+			gl.GlobalLogger.InfoContext(r.Context(), "mTLS request allowed",
 				slog.String("client_cn", clientName),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path))
 		}
 		proxy.ServeHTTP(w, r)
-
-	})
+	}))
 	server := &http.Server{
-		Addr:     ":8443",
-		Handler:  mTLSHandler,
+		Addr:     fmt.Sprintf(":%d", config.GlobalConfig.ProxyPort),
+		Handler:  loggingHandler,
 		ErrorLog: w,
 		TLSConfig: &tls.Config{
 			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				certMutex.RLock()
 				defer certMutex.RUnlock()
-				return &currentCert, nil
+				return currentCert, nil
 			},
 			ClientCAs:  caCertPool,
 			ClientAuth: tls.RequireAndVerifyClientCert,
@@ -194,17 +217,15 @@ func Run(ctx context.Context, logger *slog.Logger) {
 	proxy.ErrorLog = w
 	server.ErrorLog = w
 
-	go testService(logger)
-	logger.InfoContext(ctx, "sentinel zt-proxy starting", slog.String("addr", server.Addr))
+	go testService()
+	gl.GlobalLogger.InfoContext(ctx, "sentinel zt-proxy starting", slog.String("addr", server.Addr))
 
 	listener, err := tls.Listen("tcp", server.Addr, server.TLSConfig)
 	if err != nil {
-		logger.ErrorContext(ctx, "failed to create TLS listener", slog.String("error", err.Error()))
-		os.Exit(1)
+		gl.GlobalLogger.ErrorContext(ctx, "failed to create TLS listener", slog.String("error", err.Error()))
 	}
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
-		logger.ErrorContext(ctx, "failed to serve", slog.String("error", err.Error()))
-		os.Exit(1)
+		gl.GlobalLogger.ErrorContext(ctx, "failed to serve", slog.String("error", err.Error()))
 	}
 }
 
@@ -227,7 +248,7 @@ func getHostAddress() string {
 	return ip.To4().String()
 }
 
-func testService(l *slog.Logger) {
+func testService() {
 	mux := http.NewServeMux()
 	ip := getHostAddress()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -235,6 +256,6 @@ func testService(l *slog.Logger) {
 	})
 	err := http.ListenAndServe(":8080", mux)
 	if err != nil {
-		l.ErrorContext(context.Background(), "failed to serve", slog.String("error", err.Error()))
+		gl.GlobalLogger.ErrorContext(context.Background(), "failed to serve", slog.String("error", err.Error()))
 	}
 }

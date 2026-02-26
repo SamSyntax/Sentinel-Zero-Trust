@@ -11,7 +11,8 @@ echo "Installing Hashicorp Vault Helm Chart"
 helm repo add hashicorp https://helm.releases.hashicorp.com
 helm repo udpate
 
-helm install vault hashicorp/vault \
+helm upgrade --install vault hashicorp/vault \
   --set "server.dev.enabled=true" \
   --set "server.dev.devRootToken=root" \
+  --set "server.extraArgs=-dev-listen-address=0.0.0.0:8200" \
   --wait
