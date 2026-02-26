@@ -25,3 +25,10 @@ datasources:
         isDefault: true
         jsonData:
           maxLines: 20000
+      - name: Prometheus
+        type: prometheus
+        url: http://prometheus-server.observability.svc.cluster.local:80
+        access: proxy
+        jsonData:
+          httpMethod: POST
+          timeInterval: "30s"
