@@ -51,3 +51,9 @@ reload-pod-images: build-images
 
 refresh-dashboard:
 	infra/k8s/observability/refresh-dashboard.sh
+
+reboot-vault:
+	infra/vault/boot-vault.sh -a
+
+unseal-vault:
+	infra/vault/boot-vault.sh -u

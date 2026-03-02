@@ -90,8 +90,9 @@ func startCertificateRotation(serviceName string, ctx context.Context) {
 				gl.GlobalLogger.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
 				time.Sleep(time.Minute * 1)
 				continue
+			} else {
+				gl.GlobalLogger.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.Duration("duration", duration))
 			}
-			gl.GlobalLogger.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.Duration("duration", duration))
 			certMutex.Lock()
 			currentCert = &newCert
 			certMutex.Unlock()
