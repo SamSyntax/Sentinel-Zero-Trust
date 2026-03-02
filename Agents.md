@@ -88,74 +88,56 @@ To transform Sentinel from a PoC to a production-ready service mesh for mid-size
 ## 6. Implementation Checklist (TODO)
 
 ### Phase 1: Core Zero Trust Identity & Security
-
 - [x] **Identity Bootstrapping**:
   - [x] Integrate Java Control Plane with Vault PKI.
-  - [x] Implement certificate issuance endpoint (`/api/v1/identity/issue`).
+  - [x] Implement certificate issuance endpoint (\`/api/v1/identity/issue\`).
 - [x] **Kubernetes Token Review**:
   - [x] Integrate Control Plane with Fabric8 Kubernetes SDK.
   - [x] Implement token validation service for ServiceAccount tokens.
 - [x] **mTLS Enforcement**:
-  - [x] Configure Go proxy with `tls.RequireAndVerifyClientCert`.
+  - [x] Configure Go proxy with \`tls.RequireAndVerifyClientCert\`.
   - [x] Implement Root CA certificate verification.
 - [ ] **Secured Identity Issuance**:
-  - [ ] Implement `SentinelSecurityInterceptor` to extract identity from token.
-  - [ ] Enforce identity binding in `IdentityController` (prevent spoofing).
+  - [ ] Implement \`SentinelSecurityInterceptor\` to extract identity from token.
+  - [ ] Enforce identity binding in \`IdentityController\` (prevent spoofing).
 - [x] **Hitless Cert Rotation**:
   - [x] Implement background rotation goroutine in Go proxy.
-  - [x] Atomic swap of `tls.Certificate` without connection drops.
+  - [x] Atomic swap of \`tls.Certificate\` without connection drops.
+- [ ] **Webhook TLS Bootstrapping** (NEW):
+  - [ ] Secure injector with K8s CSR or static certs to satisfy HTTPS requirement.
 - [ ] **Automated Sidecar Injection**:
-  - [ ] Implement Mutating Admission Webhook in Java.
-  - [ ] Define injection logic for `sentinel-proxy` container and volumes.
-  - [ ] Create K8s `MutatingWebhookConfiguration` manifest.
+  - [ ] Implement Mutating Admission Webhook in Java with idempotency checks.
+  - [ ] Define injection logic for \`sentinel-proxy\`, \`sentinel-init\`, and volumes.
+  - [ ] Create K8s \`MutatingWebhookConfiguration\` with namespace exclusions.
+- [ ] **Transparent Redirection** (NEW):
+  - [ ] Implement \`iptables\` logic in init-container for traffic interception.
 
 ### Phase 2: Production Readiness & Resiliency
-
+- [ ] **Safety & Failure Policy** (NEW):
+  - [ ] Define Fail-Open/Fail-Closed behavior for the injector.
 - [ ] **Graceful Shutdown**:
-  - [ ] Handle SIGTERM/SIGINT signals in Go data plane.
-  - [ ] Implement `server.Shutdown` with proper context timeouts.
-- [ ] **Basic Health Probes**:
-  - [ ] Implement `/healthz` endpoint on administrative port.
+  - [ ] Handle SIGTERM/SIGINT signals; implement \`server.Shutdown\`.
+- [ ] **Health Probes & Exclusions** :
+  - [ ] Implement \`/healthz\` and \`iptables\` bypass for Kubelet probes.
 - [ ] **Advanced Load Balancing**:
-  - [ ] Implement K8s Endpoint Slices watcher for dynamic discovery.
-  - [ ] Add Round-Robin and Least-Request balancing algorithms.
-  - [ ] Implement weight-aware balancing based on pod labels.
-- [ ] **Retries & Timeouts**:
-  - [ ] Implement middleware for retry logic with exponential backoff.
-  - [ ] Add support for per-route configurable timeouts.
-  - [ ] Implement "retryable-status-codes" filter.
-- [ ] **Circuit Breaking**:
-  - [ ] Implement state management (Closed, Open, Half-Open).
-  - [ ] Add error threshold tracking per upstream host.
-  - [ ] Logic for automated circuit resetting after cooldown.
+  - [ ] Implement Endpoint Slices watcher and dynamic LB algorithms (Least-Request).
+- [ ] **Retries & Circuit Breaking**:
+  - [ ] Implement middleware for exponential backoff and state management.
 
 ### Phase 3: Observability & Policy
-
 - [ ] **Distributed Tracing (OpenTelemetry)**:
-  - [ ] Instrument Go proxy with OTel SDK.
-  - [ ] Implement B3 or W3C TraceParent header propagation.
-  - [ ] Export traces to Jaeger or OTLP collector.
+  - [ ] Instrument Go proxy with OTel; propagate W3C TraceParent headers.
 - [ ] **Prometheus Metrics**:
-  - [ ] Export R.E.D metrics (Rate, Error, Duration).
-  - [ ] Add certificate expiry age gauge.
-  - [ ] Implement scraping endpoint (`/metrics`) on administrative port.
+  - [ ] Export R.E.D metrics and cert expiry gauges.
 - [ ] **Deep Policy Enforcement (OPA)**:
-  - [ ] Implement sidecar-to-OPA gRPC/HTTP interface in proxy.
-  - [ ] Define standard Rego policies for RBAC/ABAC.
-  - [ ] Sync verified identity metadata from Control Plane to OPA context.
+  - [ ] Implement sidecar-to-OPA interface; define Rego RBAC/ABAC policies.
 - [ ] **Access Audit Logs**:
-  - [ ] Enrich logs with TLS serial number and Subject identity.
-  - [ ] Implement log sampling to reduce volume in high-traffic environments.
+  - [ ] Enrich JSON logs with TLS metadata; implement sampling.
 
 ### Phase 4: Enterprise Scale
-
 - [ ] **Intermediate CA Architecture**:
-  - [ ] Automate Intermediate CA creation and signing in Vault.
-  - [ ] Update proxy to trust the full cert chain.
-  - [ ] Implement automated CRL/OCSP checking.
+  - [ ] Automate Intermediate CA signing; update proxy to trust full chain.
 - [ ] **Dynamic Configuration (xDS-like)**:
-  - [ ] Implement a gRPC streaming API in the Control Plane for config delivery.
-  - [ ] Add config watcher and hot-reload logic in the Go proxy.
+  - [ ] Implement gRPC streaming API for real-time config delivery.
 - [ ] **HA Control Plane**:
-  - [ ] Implement Kubernetes Lease-based leader election.
-  - [ ] Ensure cross-replica state consistency for certificate issuance logs.
+  - [ ] Implement K8s Lease-based leader election for the Java Control Plane.

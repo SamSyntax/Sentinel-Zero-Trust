@@ -20,17 +20,17 @@
 - [x] **Hitless Cert Rotation**:
   - [x] Implement background rotation goroutine in Go proxy.
   - [x] Atomic swap of \`tls.Certificate\` without connection drops.
-- [ ] **Webhook TLS Bootstrapping** (NEW):
+- [ ] **Webhook TLS Bootstrapping** :
   - [ ] Secure injector with K8s CSR or static certs to satisfy HTTPS requirement.
 - [ ] **Automated Sidecar Injection**:
   - [ ] Implement Mutating Admission Webhook in Java with idempotency checks.
   - [ ] Define injection logic for \`sentinel-proxy\`, \`sentinel-init\`, and volumes.
   - [ ] Create K8s \`MutatingWebhookConfiguration\` with namespace exclusions.
-- [ ] **Transparent Redirection** (NEW):
+- [ ] **Transparent Redirection** :
   - [ ] Implement \`iptables\` logic in init-container for traffic interception.
 
 ### Phase 2: Production Readiness & Resiliency
-- [ ] **Safety & Failure Policy** (NEW):
+- [ ] **Safety & Failure Policy** :
   - [ ] Define Fail-Open/Fail-Closed behavior for the injector.
 - [ ] **Graceful Shutdown**:
   - [ ] Handle SIGTERM/SIGINT signals; implement \`server.Shutdown\`.
