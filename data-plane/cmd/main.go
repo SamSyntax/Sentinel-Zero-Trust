@@ -15,12 +15,10 @@ func main() {
 	if logLevel == "" {
 		logLevel = "Debug"
 	}
-
 	serviceName := os.Getenv("SERVICE_NAME")
 	if serviceName == "" {
 		serviceName = "sentinel-data-plane"
 	}
-
 	ctx := context.WithValue(context.Background(), "APP_NAME", serviceName)
 	var loggerCfg config.LoggerConfig = config.LoggerConfig{
 		Level:       logLevel,
@@ -31,15 +29,17 @@ func main() {
 		Env:         env,
 		Context:     ctx,
 	}
+	var cfg config.ProxyConfig
 	if env == "" {
 		env = "local"
 		loggerCfg.Env = env
-		config.GlobalConfig = config.CreateProxyConfig(8444, "proxy-local", loggerCfg)
+		cfg = config.CreateProxyConfig(8444, "proxy-local", loggerCfg)
 	} else {
-		config.GlobalConfig = config.CreateProxyConfig(8443, "proxy", loggerCfg)
+		cfg = config.CreateProxyConfig(8443, "proxy", loggerCfg)
 	}
-	_, cleanup := logger.InitLogger(loggerCfg, os.Stdout, 5000)
+	cfg.Load()
+	logger, cleanup := logger.InitLogger(loggerCfg, os.Stdout, 5000)
 	defer cleanup()
 
-	proxy.Run(ctx)
+	proxy.Run(ctx, cfg, logger)
 }
