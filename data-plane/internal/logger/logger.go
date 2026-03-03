@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	TraceIDKey     = "trace_id"
-	RequestIDKey   = "request_id"
-	HttpMethodKey  = "http_method"
-	HttpUriKey     = "http_uri"
-	HttpRemoteAddr = "http_remote_addr"
-	ErrorKey       = "error"
+	TraceIDKey        = "trace_id"
+	RequestIDKey      = "request_id"
+	HttpMethodKey     = "http_method"
+	HttpUriKey        = "http_uri"
+	HttpRemoteAddrKey = "http_remote_addr"
+	ErrorKey          = "error"
 )
 
 func WithTraceID(ctx context.Context, traceID string) context.Context {
@@ -37,14 +37,13 @@ func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	if val, ok := ctx.Value(HttpUriKey).(string); ok {
 		r.AddAttrs(slog.String(HttpUriKey, val))
 	}
-	if val, ok := ctx.Value(HttpRemoteAddr).(string); ok {
-		r.AddAttrs(slog.String(HttpRemoteAddr, val))
+	if val, ok := ctx.Value(HttpRemoteAddrKey).(string); ok {
+		r.AddAttrs(slog.String(HttpRemoteAddrKey, val))
 	}
 
 	return h.Handler.Handle(ctx, r)
 }
 
-var GlobalLogger *slog.Logger
 
 func InitLogger(cfg config.LoggerConfig, out io.Writer, queueSize int) (*slog.Logger, func()) {
 	asyncWriter := NewAsyncWriter(out, queueSize)
@@ -69,7 +68,5 @@ func InitLogger(cfg config.LoggerConfig, out io.Writer, queueSize int) (*slog.Lo
 		slog.String("env", cfg.Env),
 		slog.String("APP_NAME", cfg.ServiceName),
 	)
-	GlobalLogger = logger
 	return logger, func() { asyncWriter.Close() }
-
 }
