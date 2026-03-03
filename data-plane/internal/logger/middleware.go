@@ -14,13 +14,24 @@ const (
 	RequestIDHeader = "X-Request-ID"
 )
 
+type ctxKey string
+
+const (
+	ctxTraceIDKey        ctxKey = "trace_id"
+	ctxRequestIDKey      ctxKey = "request_id"
+	ctxHttpMethodKey     ctxKey = "http_method"
+	ctxHttpUriKey        ctxKey = "http_uri"
+	ctxHttpRemoteAddrKey ctxKey = "http_remote_addr"
+	ctxErrorKey          ctxKey = "error"
+)
+
 func generateTraceID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
-func Middleware(next http.Handler) http.Handler {
+func Middleware(next http.Handler, l *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		traceID := r.Header.Get(TraceIDHeader)
 		if traceID == "" {
@@ -33,10 +44,10 @@ func Middleware(next http.Handler) http.Handler {
 		}
 
 		ctx := WithTraceID(r.Context(), traceID)
-		ctx = context.WithValue(ctx, "request_id", requestID)
-		ctx = context.WithValue(ctx, "http_method", r.Method)
-		ctx = context.WithValue(ctx, "http_uri", r.RequestURI)
-		ctx = context.WithValue(ctx, "http_remote_addr", r.RemoteAddr)
+		ctx = context.WithValue(ctx, ctxRequestIDKey, requestID)
+		ctx = context.WithValue(ctx, ctxHttpMethodKey, r.Method)
+		ctx = context.WithValue(ctx, ctxHttpUriKey, r.RequestURI)
+		ctx = context.WithValue(ctx, ctxHttpRemoteAddrKey, r.RemoteAddr)
 
 		w.Header().Set(TraceIDHeader, traceID)
 		w.Header().Set(RequestIDHeader, requestID)
@@ -59,7 +70,7 @@ func Middleware(next http.Handler) http.Handler {
 			level = slog.LevelWarn
 		}
 
-		GlobalLogger.Log(ctx, level, "http_request",
+		l.Log(ctx, level, "http_request",
 			slog.String("method", r.Method),
 			slog.String("uri", r.RequestURI),
 			slog.Int("status", ww.statusCode),
