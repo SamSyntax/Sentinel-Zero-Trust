@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-set -e
-set -o pipefail # Ensures pipes don't mask errors
+set -eo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$DIR/../../.."
@@ -57,9 +56,11 @@ create_config_map() {
 
 get_unseal_key() {
   echo -e "${BLUE}Initializing vault...${NC}"
-  if ! output=$(kubectl exec vault-0 -- vault operator init -key-shares=1 -key-threshold=1 -format=json >"$KEYS_FILE" 2>&1); then
-    echo -e "${RED}Error initializing Vault:${NC}\n${RED}$output${NC}"
-    exit 1
+  if ! output=$(kubectl exec vault-0 -- vault operator init -key-shares=1 -key-threshold=1 -format=json 2>&1); then
+    echo -e "${RED}Error initializing Vault:${NC}\n${RED}$output"
+    echo -e "${YELLOW} $output ${NC}"
+  else
+    echo "$output" >"$KEYS_FILE"
   fi
   UNSEAL_KEY=$(jq -r '.unseal_keys_b64[0]' "$KEYS_FILE" | tr -d '[:space:]')
 }
@@ -81,11 +82,12 @@ unseal_vault() {
 apply_terraform() {
   echo -e "${BLUE}Applying Terraform (PKI & Secrets)...${NC}"
 
+
   kubectl port-forward --address 127.0.0.1 pod/vault-0 $1:8200 >/dev/null 2>&1 &
   PF_PID=$!
   trap "kill $PF_PID 2>/dev/null || true" EXIT
 
-  export TF_VAR_VAULT_ADDR="http://127.0.0.1:$1"
+  export VAULT_ADDR="http://127.0.0.1:$1"
 
   cd "$PROJECT_ROOT/infra/terraform"
 
@@ -94,7 +96,7 @@ apply_terraform() {
     exit 1
   fi
 
-  if ! output=$(terraform apply -auto-approve 2>&1); then
+  if ! output=$(terraform apply -var "VAULT_ADDR=$VAULT_ADDR" -auto-approve 2>&1); then
     echo -e "${RED}Error during Terraform Apply:${NC}\n${RED}$output${NC}"
     exit 1
   fi
@@ -213,7 +215,8 @@ if [[ "$RUN_TERRAFORM" == true ]]; then
 fi
 
 if [[ "$RUN_SYNC" == true ]]; then
-  sync_vault_token
+  # sync_vault_token
+  echo "Skipping sync_vault_token"
 fi
 
 echo -e "${GREEN}Done!${NC}"

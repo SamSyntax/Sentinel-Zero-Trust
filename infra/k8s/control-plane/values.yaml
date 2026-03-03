@@ -21,3 +21,7 @@ labels:
   app: sentinel-control-plane
 
 fullnameOverride: "sentinel-control-plane"
+
+service:
+  type: ClusterIP
+  port: 8081

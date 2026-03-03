@@ -11,8 +11,13 @@ data "external" "vault_keys" {
   program = ["bash", "${path.module}/helper-scripts/get-vault-token.sh"]
 }
 
+variable "VAULT_ADDR" {
+  type    = string
+  default = "http://127.0.0.1:8200"
+}
+
 provider "vault" {
-  address = "http://127.0.0.1:8200"
+  address = var.VAULT_ADDR
   token   = data.external.vault_keys.result.token
 
   skip_child_token = true
@@ -52,18 +57,39 @@ provider "kubernetes" {
   config_path = "~/.kube/config"
 }
 
-resource "kubernetes_namespace_v1" "sentinel_data_plane" {
-  metadata {
-    name = "sentinel-data-plane"
-  }
-}
-
 resource "kubernetes_secret_v1" "sentinel_root_ca" {
   metadata {
     name      = "sentinel-root-ca"
-    namespace = kubernetes_namespace_v1.sentinel_data_plane.metadata[0].name
+    namespace = "sentinel-data-plane"
   }
   data = {
     "root_ca.crt" = vault_pki_secret_backend_root_cert.sentinel_root.certificate
   }
+}
+
+resource "vault_auth_backend" "kubernetes" {
+  type = "kubernetes"
+}
+
+resource "vault_kubernetes_auth_backend_config" "k8s" {
+  backend         = vault_auth_backend.kubernetes.path
+  kubernetes_host = "https://kubernetes.default.svc.cluster.local:443"
+}
+
+resource "vault_policy" "sentinel_policy" {
+  name   = "sentinel-app-policy"
+  policy = <<EOT
+    path "pki/issue/sentinel-service" {
+      capabilities = ["create", "update"]
+  }
+  EOT
+}
+
+resource "vault_kubernetes_auth_backend_role" "sentinel_role" {
+  backend                          = vault_auth_backend.kubernetes.path
+  role_name                        = "sentinel-role"
+  bound_service_account_names      = ["sentinel-control-plane"]
+  bound_service_account_namespaces = ["sentinel-control-plane"]
+  token_policies                   = [vault_policy.sentinel_policy.name]
+  token_ttl                        = 3600
 }

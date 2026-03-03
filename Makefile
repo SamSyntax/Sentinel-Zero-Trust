@@ -35,15 +35,15 @@ build-control-plane-image:
 	helm upgrade --install control-plane infra/k8s/control-plane \
 		-n sentinel-control-plane --create-namespace \
 		--set rbac.create=true --set labels.app=control-plane
-	kubectl rollout restart deployment sentinel-control-plane -n sentinel-control-plane
+	kubectl rollout restart deployment -n sentinel-control-plane
 
 build-data-plane-image:
 	docker build -t "sentinel-data-plane:latest" data-plane/
 	kind load docker-image sentinel-data-plane:latest --name sentinel-zt
 	helm upgrade --install data-plane infra/k8s/data-plane \
   -n sentinel-data-plane --create-namespace \
-  --set serviceAccount.create=true --set service.nodePort=30443
-	kubectl rollout restart deployment sentinel-data-plane -n sentinel-data-plane
+  --set serviceAccount.create=true --set service.type=NodePort --set service.nodePort=30443
+	kubectl rollout restart deployment -n sentinel-data-plane
 
 build-images: build-control-plane-image build-data-plane-image
 
@@ -53,7 +53,7 @@ refresh-dashboard:
 	infra/k8s/observability/refresh-dashboard.sh
 
 reboot-vault:
-	infra/vault/boot-vault.sh -a
+	infra/k8s/vault/boot-vault.sh -a -p 8210
 
 unseal-vault:
-	infra/vault/boot-vault.sh -u
+	infra/k8s/vault/boot-vault.sh -u

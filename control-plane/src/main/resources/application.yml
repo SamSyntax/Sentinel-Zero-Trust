@@ -4,8 +4,11 @@ spring:
     name: sentinel-control-plane
   cloud:
     vault:
-      uri: http://127.0.0.1:8200
-      token: ${VAULT_TOKEN:root}
+      uri: http://vault-internal.default.svc.cluster.local:8200
+      authentication: KUBERNETES
+      kubernetes:
+        role: sentinel-role
+        service-account-token-file: /var/run/secrets/kubernetes.io/serviceaccount/token
       kv:
         enabled: false
 

@@ -30,6 +30,6 @@ kubectl cp vault-0:/tmp/root_ca.crt ./certs/root_ca.crt
 
 kubectl create secret generic sentinel-root-ca \
   --from-file=root_ca.crt=./certs/root_ca.crt \
-  --dry-run=client -o yaml | kubectl apply -f -
+  --dry-run=client --namespace=sentinel-data-plane -o yaml | kubectl apply -f -
 
 echo "PKI Engine configured successfully"

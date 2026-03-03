@@ -9,9 +9,15 @@ echo "Deleting Kind Cluster: ${CLUSTER_NAME}"
 kind delete cluster --name "${CLUSTER_NAME}"
 
 $DIR/kind/setup-cluster.sh
-$DIR/helm-setup.sh
+kubectl create namespace sentinel-data-plane --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace sentinel-control-plane --dry-run=client -o yaml | kubectl apply -f -
+$DIR/vault/boot-vault.sh -a -p 8210
 $DIR/observability/setup-observability.sh
-$DIR/cluster-pki-init.sh
 
-kubectl apply -f $DIR/control-plane/control-plane.yaml
-kubectl apply -f $DIR/data-plane/data-plane.yaml
+helm upgrade --install control-plane $DIR/control-plane \
+  -n sentinel-control-plane --create-namespace \
+  --wait
+
+helm upgrade --install data-plane $DIR/data-plane \
+  -n sentinel-data-plane --create-namespace \
+  --set service.type=NodePort --set service.nodePort=30443
