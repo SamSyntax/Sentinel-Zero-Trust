@@ -4,7 +4,7 @@ set -euxo pipefail
 
 VAULT_ADDR='http://127.0.0.1:8200'
 VAULT_TOKEN='root'
-ROOT_CERT_PATH="$HOME/Documents/FinalProject/sentinel-zt/certs/root_ca.crt"
+ROOT_CERT_PATH="$HOME/Documents/FinalProject/sentinel-zt/certs/root_docker_ca.crt"
 
 echo "--- Init PKI Secrets Engine ---"
 docker exec -e VAULT_TOKEN=$VAULT_TOKEN sentinel-vault vault secrets enable pki || echo "PKI already enabled"
