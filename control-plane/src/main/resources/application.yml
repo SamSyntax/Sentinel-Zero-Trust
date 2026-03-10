@@ -54,7 +54,7 @@ spring:
       on-profile: local,dev
   cloud:
     vault:
-      uri: http://vault:8200
+      enabled: false
 logging:
   level:
     sentinel_zt: DEBUG
