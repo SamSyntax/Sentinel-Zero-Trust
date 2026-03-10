@@ -2,11 +2,19 @@ package utils
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
+	"syscall"
+
+	"golang.org/x/sys/unix"
+)
+
+const (
+	SO_ORIGINAL_DST = 80
 )
 
 type ServiceAccountToken string
@@ -50,4 +58,27 @@ func GetServiceAccountToken(l *slog.Logger) (ServiceAccountToken, error) {
 	}
 	l.InfoContext(context.Background(), "service account token loaded successfully")
 	return ServiceAccountToken(file), nil
+}
+
+func GetOriginalDest(conn *net.TCPConn) (net.Addr, error) {
+	file, err := conn.File()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get file: %w", err)
+	}
+	defer file.Close()
+
+	mreq, err := unix.GetsockoptIPv6Mreq(int(file.Fd()), syscall.IPPROTO_IP, SO_ORIGINAL_DST)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get original destination: %w", err)
+	}
+
+	ip := net.IP(mreq.Multiaddr[4:8])
+	port := binary.BigEndian.Uint16(mreq.Multiaddr[2:4])
+
+	addr := &net.TCPAddr{
+		IP:   ip,
+		Port: int(port),
+	}
+
+	return addr, nil
 }

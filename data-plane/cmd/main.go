@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"sentinel-zt/data-plane/internal/config"
 	"sentinel-zt/data-plane/internal/logger"
@@ -19,6 +20,7 @@ func main() {
 	if serviceName == "" {
 		serviceName = "sentinel-data-plane"
 	}
+
 	ctx := context.WithValue(context.Background(), "APP_NAME", serviceName)
 	var loggerCfg config.LoggerConfig = config.LoggerConfig{
 		Level:       logLevel,
@@ -29,17 +31,34 @@ func main() {
 		Env:         env,
 		Context:     ctx,
 	}
+	logger, cleanup := logger.InitLogger(loggerCfg, os.Stdout, 5000)
+	defer cleanup()
+
+	proxyMode := os.Getenv("PROXY_MODE")
+	var port int
+	if proxyMode == "redirect" {
+		port = 15006
+	} else {
+		port = 8443
+	}
 	var cfg config.ProxyConfig
 	if env == "" {
 		env = "local"
 		loggerCfg.Env = env
-		cfg = config.CreateProxyConfig(8444, "proxy-local", loggerCfg)
+		cfg = config.CreateProxyConfig(8444, serviceName, loggerCfg)
 	} else {
-		cfg = config.CreateProxyConfig(8443, "proxy", loggerCfg)
+		cfg = config.CreateProxyConfig(8443, serviceName, loggerCfg)
 	}
 	cfg.Load()
-	logger, cleanup := logger.InitLogger(loggerCfg, os.Stdout, 5000)
-	defer cleanup()
 
-	proxy.Run(ctx, cfg, logger)
+	logger.Info("starting sentinel-zt proxy", slog.String("mode", proxyMode), slog.Int("port", port))
+	p, err := proxy.NewProxy(ctx, cfg, logger)
+	if err != nil {
+		logger.Error("failed to create proxy", slog.String("error", err.Error()))
+	}
+	if err := p.Run(); err != nil {
+		logger.Error("proxy error", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
 }
