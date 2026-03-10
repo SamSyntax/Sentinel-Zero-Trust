@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import io.fabric8.kubernetes.api.model.authentication.TokenReview;
 import io.fabric8.kubernetes.api.model.authentication.TokenReviewBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -15,8 +14,8 @@ public class K8sTokenReviewService {
   private final KubernetesClient client;
   private final AuditService auditService;
   
-  public K8sTokenReviewService(AuditService auditService) {
-    this.client = new KubernetesClientBuilder().build();
+  public K8sTokenReviewService(KubernetesClient client, AuditService  auditService) {
+    this.client = client;
     this.auditService = auditService;
   }
 

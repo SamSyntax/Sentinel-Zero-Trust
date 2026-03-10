@@ -6,11 +6,13 @@ import sentinel_zt.service.VaultPkiService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
+@ConditionalOnProperty(name = "spring.cloud.vault.enabled", havingValue = "true", matchIfMissing = true)
 @RequestMapping("/api/v1/identity")
 public class IdentityController {
   private final VaultPkiService pkiService;
@@ -22,8 +24,10 @@ public class IdentityController {
   @PostMapping("/issue")
   public ResponseEntity<IdentityResponse> issueIdentity(@Valid @RequestBody IdentityRequest request, @RequestHeader(value = "X-Sentinel-Token", required = true) String authHeader) {
     IdentityResponse response = pkiService.issueCertificate(request.getServiceName());
+    if (response == null) {
+      return ResponseEntity.internalServerError().build();
+    }
     return ResponseEntity.ok(response);
-
   }
 }
 

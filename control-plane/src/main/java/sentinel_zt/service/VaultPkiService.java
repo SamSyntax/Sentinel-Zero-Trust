@@ -3,6 +3,7 @@ package sentinel_zt.service;
 import java.util.Map;
 
 import org.slf4j.MDC;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.vault.core.VaultTemplate;
 import org.springframework.vault.support.VaultResponse;
@@ -11,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import sentinel_zt.dto.IdentityResponse;
 
 @Service
+@ConditionalOnProperty(name = "spring.cloud.vault.enabled", havingValue = "true", matchIfMissing = true)
 @Slf4j
 public class VaultPkiService {
 
