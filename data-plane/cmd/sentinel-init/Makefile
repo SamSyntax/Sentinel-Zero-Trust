@@ -1,0 +1,18 @@
+BUILD_DIR=bin
+BIN_NAME=sentinel-init
+DOCKERFILE=Dockerfile.init
+IMAGE_NAME=sentinel-init:latest
+
+.PHONY: all build clean
+
+all: clean build
+
+build: 
+	@mkdir -p $(BUILD_DIR)
+	go build -o $(BUILD_DIR)/$(BIN_NAME) ./cmd
+
+clean: 
+	@rm -rf $(BUILD_DIR)/*
+
+build-docker: all
+	docker build -f $(DOCKERFILE) -t $(IMAGE_NAME) .

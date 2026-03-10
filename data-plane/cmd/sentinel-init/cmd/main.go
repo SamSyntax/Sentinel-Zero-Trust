@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"sentinel-zt/data-plane/internal/config"
-	"sentinel-zt/data-plane/internal/logger"
+	"sentinel-init/internal/config"
+	"sentinel-init/internal/logger"
 	"strings"
 )
 
