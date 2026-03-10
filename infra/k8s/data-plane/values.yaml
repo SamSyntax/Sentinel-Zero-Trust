@@ -7,6 +7,17 @@ serviceAccount:
   create: true
   name: "sentinel-data-plane"
 
+containerPort: 15006
+
+initContainer:
+  name: sentinel-init
+  image:
+    repository: kind.local/sentinel-init
+    tag: "latest"
+    pullPolicy: Never
+  inboundPort: 15006
+  outboundPort: 15001
+
 controlPlane:
   serviceName: sentinel-control-plane
   namespace: sentinel-control-plane
@@ -18,7 +29,7 @@ containers:
 
 service:
   type: NodePort
-  port: 8443
+  port: 15006
   nodePort: 30443
 
 fullnameOverride: "sentinel-data-plane"

@@ -16,7 +16,7 @@ spec:
     spec:
       initContainers:
         - name: sentinel-init
-          image: sentinel-init:latest
+          image: kind.local/sentinel-init:latest
           securityContext:
             capabilities:
               add: ["NET_ADMIN"]
@@ -32,6 +32,8 @@ spec:
               value: "http://sentinel-control-plane.sentinel-control-plane.svc.cluster.local:8081/api/v1/identity/issue"
             - name: ENV
               value: "kind-local"
+            - name: PROXY_MODE
+              value: "redirect"
             - name: POD_IP
               valueFrom:
                 fieldRef:
@@ -57,6 +59,6 @@ spec:
     app: data-plane
   ports:
     - protocol: TCP
-      port: 8443
-      targetPort: 8443
+      port: 15006
+      targetPort:  15006
       nodePort: 30443
