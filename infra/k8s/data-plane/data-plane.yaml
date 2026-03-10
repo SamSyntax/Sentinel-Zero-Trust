@@ -14,17 +14,28 @@ spec:
       labels:
         app: data-plane
     spec:
+      initContainers:
+        - name: sentinel-init
+          image: sentinel-init:latest
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          args: ["--inboundPort", "15006", "--outboundPort", "15001"]
       containers:
         - name: proxy
           image: sentinel-data-plane:latest
           imagePullPolicy: Never
           ports:
-            - containerPort: 8443
+            - containerPort: 15006
           env:
             - name: CONTROL_PLANE_URL
               value: "http://sentinel-control-plane.sentinel-control-plane.svc.cluster.local:8081/api/v1/identity/issue"
             - name: ENV
               value: "kind-local"
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
             - name: CA_CERT_PATH
               value: "/etc/certs/root_ca.crt"
           volumeMounts:
