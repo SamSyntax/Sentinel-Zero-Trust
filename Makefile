@@ -1,5 +1,6 @@
 DATA_PLANE_BINARY_NAME=plane
 DATA_PLANE_BUILD_DIR=data-plane
+INIT_CONTAINER_BUILD_DIR=sentinel-init
 
 .PHONY: all build clean run
 
@@ -44,6 +45,10 @@ build-data-plane-image:
   -n sentinel-data-plane --create-namespace \
   --set serviceAccount.create=true --set service.type=NodePort --set service.nodePort=30443
 	kubectl rollout restart deployment -n sentinel-data-plane
+
+build-init-image:
+	$(MAKE) -C $(INIT_CONTAINER_BUILD_DIR) build-docker -j $(nproc)
+	kind load docker-image kind.local/sentinel-init:latest --name sentinel-zt
 
 build-images: build-control-plane-image build-data-plane-image
 
