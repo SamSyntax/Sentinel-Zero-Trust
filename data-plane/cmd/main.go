@@ -19,6 +19,7 @@ func main() {
 	serviceName := os.Getenv("SERVICE_NAME")
 	if serviceName == "" {
 		serviceName = "sentinel-data-plane"
+		
 	}
 
 	ctx := context.WithValue(context.Background(), "APP_NAME", serviceName)
