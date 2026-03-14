@@ -1,0 +1,23 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: sentinel-sidecar-injector
+webhooks:
+  - name: injector.sentinel-zt.io
+    clientConfig:
+      service:
+        name: sentinel-control-plane
+        namespace: sentinel-system
+        path: "/webhook/mutate"
+      caBundle: ${CA_BUNDLE}
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    timeoutSeconds: 5
+    namespaceSelector:
+      matchLabels:
+        sentinel-zt.io/injection: enabled

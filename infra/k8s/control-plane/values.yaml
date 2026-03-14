@@ -16,6 +16,7 @@ vault:
 containers:
   name: sentinel-control-plane
   port: 8081
+  grpcPort: 9090
 
 labels:
   app: sentinel-control-plane

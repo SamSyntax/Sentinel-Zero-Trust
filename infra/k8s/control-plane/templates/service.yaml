@@ -8,9 +8,14 @@ spec:
   type: {{ .Values.service.type | default "ClusterIP" }}
   selector: {{- include "sentinel.selectorLabels" . | nindent 4 }}
   ports:
-    - protocol: TCP
+    - name: http
+      protocol: TCP
       port: {{ .Values.containers.port }}
       targetPort: {{ .Values.containers.port }}
       {{- if and (eq (.Values.service.type | default "ClusterIP") "NodePort") .Values.service.nodePort }}
       nodePort: {{ .Values.service.nodePort }}
       {{- end }}
+    - name: grpc
+      protocol: TCP
+      port: {{ .Values.containers.grpcPort }}
+      targetPort: {{ .Values.containers.grpcPort }}

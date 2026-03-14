@@ -24,6 +24,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.containers.port }}
+            - containerPort: {{ .Values.containers.grpcPort }}
           env:
             - name: SPRING_CLOUD_VAULT_URI
               value: {{ .Values.vault.uri | quote }}
