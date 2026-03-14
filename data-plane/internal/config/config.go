@@ -13,6 +13,7 @@ type ProxyConfig struct {
 	Name            string
 	CACertPath      string
 	TargetURL       string
+	TargetGRPC      string
 	ControlPlaneURL string
 	LoggerConfig    LoggerConfig
 }
@@ -36,6 +37,7 @@ func CreateProxyConfig(port int, name string, loggerCfg LoggerConfig) ProxyConfi
 
 func (pc *ProxyConfig) Load() {
 	pc.TargetURL = os.Getenv("TARGET_URL")
+	pc.TargetGRPC= os.Getenv("TARGET_GRPC")
 	pc.ControlPlaneURL = os.Getenv("CONTROL_PLANE_URL")
 	pc.CACertPath = os.Getenv("CA_CERT_PATH")
 
@@ -62,6 +64,7 @@ func (pc *ProxyConfig) Load() {
 	if pc.ControlPlaneURL == "" {
 		pc.ControlPlaneURL = "http://localhost:8081/api/v1/identity/issue"
 	}
-	if pc.CACertPath == "" { pc.CACertPath = "../certs/root_ca.crt"
+	if pc.CACertPath == "" {
+		pc.CACertPath = "../certs/root_ca.crt"
 	}
 }
