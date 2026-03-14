@@ -38,7 +38,7 @@ build-control-plane-image:
 		--set rbac.create=true --set labels.app=control-plane
 	kubectl rollout restart deployment -n sentinel-control-plane
 
-build-data-plane-image:
+build-data-plane-image: build-init-image
 	docker build -t "sentinel-data-plane:latest" data-plane/
 	kind load docker-image sentinel-data-plane:latest --name sentinel-zt
 	helm upgrade --install data-plane infra/k8s/data-plane \

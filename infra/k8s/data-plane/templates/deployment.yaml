@@ -34,6 +34,8 @@ spec:
           env:
             - name: CONTROL_PLANE_URL
               value: {{ printf "http://%s.%s.svc.cluster.local:%d/api/v1/identity/issue" .Values.controlPlane.serviceName .Values.controlPlane.namespace (int .Values.controlPlane.port) | quote }}
+            - name: TARGET_GRPC
+              value: {{ printf "%s.%s.svc.cluster.local:%d" .Values.controlPlane.serviceName .Values.controlPlane.namespace (int .Values.controlPlane.grpcPort) | quote }}
             - name: ENV
               value: "kind-local"
             - name: PROXY_MODE

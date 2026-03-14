@@ -22,6 +22,7 @@ controlPlane:
   serviceName: sentinel-control-plane
   namespace: sentinel-control-plane
   port: 8081
+  grpcPort: 9090
 caSecretName: sentinel-root-ca
 
 containers:
