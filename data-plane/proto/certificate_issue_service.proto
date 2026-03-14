@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package sentinel_zt;
+
+option go_package = "grpc/proto";
+
+service CertificateIssuerService {
+  rpc getCertificate(CertificateRequest) returns (CertificateResponse);
+}
+
+message CertificateRequest {
+  string service_name = 1;
+}
+
+message CertificateResponse {
+  string certificate = 1;
+  string private_key = 2;
+  string issuing_ca = 3;
+  string serial_number = 4;
+}
