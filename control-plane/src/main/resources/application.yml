@@ -11,10 +11,15 @@ spring:
         service-account-token-file: /var/run/secrets/kubernetes.io/serviceaccount/token
       kv:
         enabled: false
+  grpc:
+    server:
+      port: 9090
+      address: 0.0.0.0
 
 server:
   port: 8081
   address: 0.0.0.0
+
 
 logging:
   level:
@@ -54,7 +59,13 @@ spring:
       on-profile: local,dev
   cloud:
     vault:
-      enabled: false
+      uri: http://localhost:8200
+      authentication: TOKEN
+      token: ${VAULT_TOKEN:root}
+  grpc:
+    server:
+      port: 9091
+      address: 0.0.0.0
 logging:
   level:
     sentinel_zt: DEBUG
@@ -66,6 +77,10 @@ spring:
   config:
     activate:
       on-profile: production
+  grpc:
+    server:
+      port: 9090
+      address: 0.0.0.0
 logging:
   level:
     sentinel_zt: INFO
