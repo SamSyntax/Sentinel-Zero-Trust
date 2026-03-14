@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"sentinel-zt/data-plane/internal/config"
+	"sentinel-zt/data-plane/internal/grpc"
 	"sentinel-zt/data-plane/internal/logger"
 	utils "sentinel-zt/data-plane/internal/utils"
 	"strings"
@@ -46,10 +47,10 @@ func (cm *CertManager) GetCurrentCertificate() *tls.Certificate {
 	return cm.currentCert
 }
 
-func (cm *CertManager) StartRotation(ctx context.Context, token utils.ServiceAccountToken, serviceName string, controlPlaneURL string, l *slog.Logger) {
+func (cm *CertManager) StartRotation(ctx context.Context, token utils.ServiceAccountToken, serviceName string, target string, l *slog.Logger) {
 	for {
 		if cm.currentCert.Certificate == nil {
-			cert, err := fetchIdentity(controlPlaneURL, token, serviceName)
+			cert, err := grpc.FetchIdentityGRPC(ctx, target, token, serviceName)
 			if err != nil {
 				l.WarnContext(ctx, "initial certificate fetch failed, retrying", slog.String("error", err.Error()), slog.String("service", serviceName))
 				time.Sleep(time.Minute * 1)
@@ -79,7 +80,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, token utils.ServiceAcc
 		select {
 		case <-time.After(sleepDuration):
 			start := time.Now()
-			newCert, err := fetchIdentity(controlPlaneURL, token, serviceName)
+			newCert, err := grpc.FetchIdentityGRPC(ctx,target, token, serviceName)
 			duration := time.Since(start)
 			if err != nil {
 				l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
@@ -203,12 +204,13 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, logger *slog.Logger) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service account token: %w", err)
 	}
-	initialCert, err := fetchIdentity(cfg.ControlPlaneURL, token, "proxy")
+	// initialCert, err := fetchIdentity(cfg.ControlPlaneURL, token, "proxy")
+	initialCert, err := grpc.FetchIdentityGRPC(ctx, cfg.TargetGRPC, token, "proxy")
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch initial certificate: %w", err)
 	}
 	cm := &CertManager{currentCert: &initialCert}
-	go cm.StartRotation(ctx, token, "proxy", cfg.ControlPlaneURL, logger)
+	go cm.StartRotation(ctx, token, "proxy", cfg.TargetGRPC, logger)
 	proxy := &Proxy{
 		cfg:         cfg,
 		logger:      logger,
