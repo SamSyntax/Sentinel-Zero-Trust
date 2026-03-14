@@ -5,7 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.SpringApplication;
 
 @Slf4j
-@SpringBootApplication
+@SpringBootApplication(excludeName = {
+    "org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration"
+})
 public class SentinelZT {
   public static void main(String[] args) {
     try {
