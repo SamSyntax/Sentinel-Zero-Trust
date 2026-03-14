@@ -9,7 +9,6 @@ service CertificateIssuerService {
 }
 
 message CertificateRequest {
-  string x_sentinel_token = 1;
   string service_name = 2;
 }
 
