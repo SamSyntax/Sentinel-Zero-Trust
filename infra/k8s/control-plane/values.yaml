@@ -23,6 +23,9 @@ labels:
 
 fullnameOverride: "sentinel-control-plane"
 
+spiffe:
+  trustDomain: "cluster.local"
+
 service:
   type: ClusterIP
   port: 8081
