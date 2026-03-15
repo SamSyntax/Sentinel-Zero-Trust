@@ -42,14 +42,14 @@ resource "vault_pki_secret_backend_root_cert" "sentinel_root" {
 }
 
 resource "vault_pki_secret_backend_role" "sentinel_role" {
-  backend          = vault_mount.pki.path
-  name             = "sentinel-service"
-  ttl              = "259200"
-  allow_ip_sans    = true
-  key_type         = "rsa"
-  key_bits         = 2048
-  allowed_domains  = ["sentinel.local", "sentinel.zt"]
-  allow_subdomains = true
+  backend       = vault_mount.pki.path
+  name          = "sentinel-service"
+  ttl           = "259200"
+  allow_ip_sans = true
+  key_type      = "rsa"
+  key_bits      = 2048
+  allowed_uri_sans = ["spiffe://*"]
+  allow_any_name   = true
   generate_lease   = true
 }
 
