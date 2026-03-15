@@ -10,10 +10,11 @@ type ProxyConfig struct {
 	ProxyPort       int
 	InboundPort     int
 	OutboundPort    int
-	Name            string
+	ServiceName     string
 	CACertPath      string
 	TargetURL       string
 	TargetGRPC      string
+	TrustedDomain   string
 	ControlPlaneURL string
 	LoggerConfig    LoggerConfig
 }
@@ -30,16 +31,17 @@ type LoggerConfig struct {
 func CreateProxyConfig(port int, name string, loggerCfg LoggerConfig) ProxyConfig {
 	return ProxyConfig{
 		ProxyPort:    port,
-		Name:         name,
+		ServiceName:  name,
 		LoggerConfig: loggerCfg,
 	}
 }
 
 func (pc *ProxyConfig) Load() {
 	pc.TargetURL = os.Getenv("TARGET_URL")
-	pc.TargetGRPC= os.Getenv("TARGET_GRPC")
+	pc.TargetGRPC = os.Getenv("TARGET_GRPC")
 	pc.ControlPlaneURL = os.Getenv("CONTROL_PLANE_URL")
 	pc.CACertPath = os.Getenv("CA_CERT_PATH")
+	pc.TrustedDomain = os.Getenv("SPIFFE_TRUSTED_DOMAIN")
 
 	if port := os.Getenv("INBOUND_PORT"); port != "" {
 		if p, err := strconv.Atoi(port); err == nil {
@@ -66,5 +68,8 @@ func (pc *ProxyConfig) Load() {
 	}
 	if pc.CACertPath == "" {
 		pc.CACertPath = "../certs/root_ca.crt"
+	}
+	if pc.TrustedDomain == "" {
+		pc.TrustedDomain = "cluster.local"
 	}
 }

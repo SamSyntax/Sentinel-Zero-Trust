@@ -80,7 +80,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, token utils.ServiceAcc
 		select {
 		case <-time.After(sleepDuration):
 			start := time.Now()
-			newCert, err := grpc.FetchIdentityGRPC(ctx,target, token, serviceName)
+			newCert, err := grpc.FetchIdentityGRPC(ctx, target, token, serviceName)
 			duration := time.Since(start)
 			if err != nil {
 				l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
@@ -204,13 +204,18 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, logger *slog.Logger) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service account token: %w", err)
 	}
+	claims, err := utils.ParseJWT(string(token))
+	if err != nil {
+		return nil, err
+	}
+	spiffeId := claims.GetSpiffeId(cfg.TrustedDomain)
 	// initialCert, err := fetchIdentity(cfg.ControlPlaneURL, token, "proxy")
-	initialCert, err := grpc.FetchIdentityGRPC(ctx, cfg.TargetGRPC, token, "proxy")
+	initialCert, err := grpc.FetchIdentityGRPC(ctx, cfg.TargetGRPC, token, spiffeId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch initial certificate: %w", err)
 	}
 	cm := &CertManager{currentCert: &initialCert}
-	go cm.StartRotation(ctx, token, "proxy", cfg.TargetGRPC, logger)
+	go cm.StartRotation(ctx, token, spiffeId, cfg.TargetGRPC, logger)
 	proxy := &Proxy{
 		cfg:         cfg,
 		logger:      logger,
