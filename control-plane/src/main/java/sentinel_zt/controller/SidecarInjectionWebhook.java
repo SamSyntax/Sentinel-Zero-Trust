@@ -33,7 +33,7 @@ public class SidecarInjectionWebhook {
             Pod pod = (Pod) admissionReview.getRequest().getObject();
             Map<String, String> annotations = pod.getMetadata().getAnnotations();
 
-            if (annotations != null && "true".equals(annotations.get("sentinel-zt.io/inject"))) {
+            if (annotations != null && "true".equals(annotations.get("sentinel-zt.io/injection"))) {
                 String serviceName = annotations.getOrDefault("sentinel-zt.io/service-name",
                         pod.getMetadata().getName() != null ? pod.getMetadata().getName() : "unknown-service");
 

@@ -7,7 +7,7 @@ webhooks:
     clientConfig:
       service:
         name: sentinel-control-plane
-        namespace: sentinel-system
+        namespace: sentinel-control-plane
         path: "/webhook/mutate"
       caBundle: ${CA_BUNDLE}
     rules:
