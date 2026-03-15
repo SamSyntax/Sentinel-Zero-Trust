@@ -7,6 +7,7 @@ import (
 	"sentinel-zt/data-plane/internal/config"
 	"sentinel-zt/data-plane/internal/logger"
 	"sentinel-zt/data-plane/internal/proxy"
+	"time"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 	serviceName := os.Getenv("SERVICE_NAME")
 	if serviceName == "" {
 		serviceName = "sentinel-data-plane"
-		
+
 	}
 
 	ctx := context.WithValue(context.Background(), "APP_NAME", serviceName)
@@ -56,6 +57,15 @@ func main() {
 	p, err := proxy.NewProxy(ctx, cfg, logger)
 	if err != nil {
 		logger.Error("failed to create proxy", slog.String("error", err.Error()))
+		for {
+			logger.Info("Retrying to create proxy in 10 seconds...")
+			time.Sleep(10 * time.Second)
+			p, err = proxy.NewProxy(ctx, cfg, logger)
+			if err == nil {
+				break
+			}
+			logger.Error("failed to create proxy", slog.String("error", err.Error()))
+		}
 	}
 	if err := p.Run(); err != nil {
 		logger.Error("proxy error", slog.String("error", err.Error()))
