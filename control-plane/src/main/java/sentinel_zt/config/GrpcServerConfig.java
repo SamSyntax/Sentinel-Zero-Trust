@@ -4,6 +4,8 @@ package sentinel_zt.config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.grpc.server.GlobalServerInterceptor;
+
 
 /**
  * gRPC Server Configuration.
@@ -17,6 +19,7 @@ import org.springframework.context.annotation.Configuration;
  * (e.g., interceptors, custom server builders).
  */
 @Configuration
+@GlobalServerInterceptor
 public class GrpcServerConfig {
   private static final Logger log = LoggerFactory.getLogger(GrpcServerConfig.class);
 
