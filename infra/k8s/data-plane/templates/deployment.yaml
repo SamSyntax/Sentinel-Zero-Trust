@@ -38,6 +38,8 @@ spec:
               value: {{ printf "%s.%s.svc.cluster.local:%d" .Values.controlPlane.serviceName .Values.controlPlane.namespace (int .Values.controlPlane.grpcPort) | quote }}
             - name: ENV
               value: "kind-local"
+            - name: SPIFFE_TRUST_DOMAIN
+              value: {{ .Values.spiffe.trustDomain | quote }}
             - name: PROXY_MODE
               value: "redirect"
             - name: POD_IP

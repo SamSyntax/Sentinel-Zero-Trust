@@ -25,6 +25,9 @@ controlPlane:
   grpcPort: 9090
 caSecretName: sentinel-root-ca
 
+spiffe:
+  trustDomain: cluster.local
+
 containers:
   name: sentinel-data-plane
 
