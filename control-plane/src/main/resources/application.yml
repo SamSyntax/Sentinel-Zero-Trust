@@ -51,7 +51,8 @@ management:
     export:
       prometheus:
         enabled: true
-
+spiffe:
+  trust-domain: ${SPIFFE_TRUST_DOMAIN:cluster.local}
 ---
 spring:
   config:
