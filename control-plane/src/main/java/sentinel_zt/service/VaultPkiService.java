@@ -35,7 +35,8 @@ public class VaultPkiService {
     long startTime = System.currentTimeMillis();
     
     Map<String,Object> request = Map.of(
-        "common_name", serviceName + ".sentinel.local",
+        "common_name",  getServiceAccountName(serviceName),
+        "alt_names", serviceIdentity,
         "ttl", "6m"
         );
     
@@ -79,5 +80,14 @@ public class VaultPkiService {
 
   public VaultTemplate getVaultTemplate() {
     return vaultTemplate;
+  }
+
+  public String getServiceAccountName(String identity) {
+    var parts = identity.split("/");
+    if (parts.length == 0) {
+      return null;
+    }
+    var serviceAccount = parts[parts.length - 1];
+    return serviceAccount;
   }
 }
