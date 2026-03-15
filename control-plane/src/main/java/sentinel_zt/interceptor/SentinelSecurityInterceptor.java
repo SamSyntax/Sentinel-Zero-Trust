@@ -45,6 +45,7 @@ public class SentinelSecurityInterceptor implements HandlerInterceptor {
     try {
       if(k8sService.validateToken(token)) {
         String serviceName = k8sService.getServiceAccountName(token);
+        request.setAttribute("verifiedService", serviceName);
         MDC.put("serviceIdentity", serviceName);
         MDC.put("traceId", UUID.randomUUID().toString());
         
@@ -52,7 +53,6 @@ public class SentinelSecurityInterceptor implements HandlerInterceptor {
                 serviceName, request.getRequestURI(), request.getMethod(), traceId, requestId);
         
         auditService.logAuthenticationAttempt(serviceName, true, null);
-        request.setAttribute("verifiedService", serviceName);
         return true;
       } 
       
