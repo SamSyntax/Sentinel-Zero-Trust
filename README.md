@@ -14,9 +14,9 @@
 - [x] **mTLS Enforcement**:
   - [x] Configure Go proxy with \`tls.RequireAndVerifyClientCert\`.
   - [x] Implement Root CA certificate verification.
-- [ ] **Secured Identity Issuance**:
-  - [ ] Implement \`SentinelSecurityInterceptor\` to extract identity from token.
-  - [ ] Enforce identity binding in \`IdentityController\` (prevent spoofing).
+- [x] **Secured Identity Issuance**:
+  - [x] Implement \`SentinelSecurityInterceptor\` to extract identity from token.
+  - [x] Enforce identity binding in \`IdentityController\` (prevent spoofing).
 - [x] **Hitless Cert Rotation**:
   - [x] Implement background rotation goroutine in Go proxy.
   - [x] Atomic swap of \`tls.Certificate\` without connection drops.
@@ -26,8 +26,8 @@
   - [ ] Implement Mutating Admission Webhook in Java with idempotency checks.
   - [ ] Define injection logic for \`sentinel-proxy\`, \`sentinel-init\`, and volumes.
   - [ ] Create K8s \`MutatingWebhookConfiguration\` with namespace exclusions.
-- [ ] **Transparent Redirection** :
-  - [ ] Implement \`iptables\` logic in init-container for traffic interception.
+- [x] **Transparent Redirection** :
+  - [x] Implement \`iptables\` logic in init-container for traffic interception.
 
 ### Phase 2: Production Readiness & Resiliency
 - [ ] **Safety & Failure Policy** :
