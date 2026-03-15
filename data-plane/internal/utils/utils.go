@@ -10,6 +10,7 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/sys/unix"
 )
 
@@ -18,6 +19,33 @@ const (
 )
 
 type ServiceAccountToken string
+
+type KubernetesClaims struct {
+	jwt.RegisteredClaims
+	Kubernetes struct {
+		Namespace      string `json:"namespace"`
+		ServiceAccount struct {
+			Name string `json:"name"`
+		} `json:"serviceaccount"`
+	} `json:"kubernetes.io"`
+}
+
+func ParseJWT(tokenString string) (*KubernetesClaims, error) {
+	token, _, err := jwt.NewParser().ParseUnverified(tokenString, &KubernetesClaims{})
+	if err != nil {
+		return nil, err
+	}
+	claims, ok := token.Claims.(*KubernetesClaims)
+	if !ok {
+		return nil, fmt.Errorf("failed to parse claims")
+	}
+	return claims, nil
+}
+
+func (k *KubernetesClaims) GetSpiffeId(trustedDomain string) string {
+	spiffeId := fmt.Sprintf("spiffe://%s/ns/%s/sa/%s", trustedDomain, k.Kubernetes.Namespace, k.Kubernetes.ServiceAccount.Name)
+	return spiffeId
+}
 
 func GetHostAddress() string {
 	var ip net.IP
