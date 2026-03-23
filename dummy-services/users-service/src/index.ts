@@ -12,6 +12,7 @@ const HOST = Bun.env.HOST || "0.0.0.0";
 async function start() {
   try {
     await fastify.register(apiRoutes, { prefix: "/api" });
+    fastify.get("/api/health", async () => ({ status: "ok" }));
     fastify.listen({
       host: HOST,
       port: PORT,
