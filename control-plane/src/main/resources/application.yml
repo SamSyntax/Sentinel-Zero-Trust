@@ -17,8 +17,12 @@ spring:
       address: 0.0.0.0
 
 server:
-  port: 8081
   address: 0.0.0.0
+  port: 8081
+  ssl:
+    enabled: true
+    certificate: file:/etc/webhook/certs/tls.crt
+    certificate-private-key: file:/etc/webhook/certs/tls.key
 
 
 logging:
@@ -53,6 +57,12 @@ management:
         enabled: true
 spiffe:
   trust-domain: ${SPIFFE_TRUST_DOMAIN:cluster.local}
+
+control-plane:
+  service-name: ${CONTROL_PLANE_SERVICE_NAME:sentinel-control-plane}
+  namespace: ${CONTROL_PLANE_NAMESPACE:sentinel-control-plane}
+  port: ${CONTROL_PLANE_PORT:8081}
+  grpc-port: ${CONTROL_PLANE_GRPC_PORT:9090}
 ---
 spring:
   config:
@@ -67,6 +77,7 @@ spring:
     server:
       port: 9091
       address: 0.0.0.0
+
 logging:
   level:
     sentinel_zt: DEBUG
