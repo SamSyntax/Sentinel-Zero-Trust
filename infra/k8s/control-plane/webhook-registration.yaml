@@ -9,6 +9,7 @@ webhooks:
         name: sentinel-control-plane
         namespace: sentinel-control-plane
         path: "/webhook/mutate"
+        port: 8081
       caBundle: ${CA_BUNDLE}
     rules:
       - operations: ["CREATE"]

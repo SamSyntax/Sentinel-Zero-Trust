@@ -37,3 +37,11 @@ spec:
             #     secretKeyRef:
             #       name: control-plane-vault-conf
             #       key: vault-token
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /etc/webhook/certs
+              readOnly: true
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: webhook-server-tls
