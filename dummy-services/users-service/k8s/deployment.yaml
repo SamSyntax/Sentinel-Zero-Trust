@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-service
+  labels:
+    app: users-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: users-service
+  template:
+    metadata:
+      labels:
+        app: users-service
+      annotations:
+        sentinel-zt.io/inject: "true"
+        sentinel-zt.io/service-name: "users-service"
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - users-service
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: api
+        image: users-service:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3005
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+        envFrom:
+        - secretRef:
+            name: users-service-secret
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3005
+          initialDelaySeconds: 2
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3005
+          initialDelaySeconds: 2
+          periodSeconds: 10
