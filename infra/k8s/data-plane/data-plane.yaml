@@ -13,6 +13,7 @@ spec:
     metadata:
       labels:
         app: data-plane
+        sentinel-zt: "injected"
     spec:
       initContainers:
         - name: sentinel-init

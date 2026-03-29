@@ -15,6 +15,7 @@ spec:
         timestamp: {{ now | quote }}
       labels:
         {{- include "sentinel-data.selectorLabels" . | nindent 8 }}
+        sentinel-zt: "injected"
     spec:
       serviceAccountName: {{ include "sentinel-data.serviceAccountName" . }}
       initContainers:
