@@ -16,4 +16,5 @@ public class IdentityResponse {
   private String privateKey;
   private String issuingCa;
   private String serialNumber;
+  private String podUid;
 }
