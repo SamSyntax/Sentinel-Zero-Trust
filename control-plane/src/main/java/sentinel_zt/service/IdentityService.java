@@ -24,8 +24,10 @@ public class IdentityService extends CertificateIssuerServiceImplBase {
   @Override
   public void getCertificate(CertificateRequest request, StreamObserver<CertificateResponse> responseObserver) {
     String callerIdentity = GrpcIdentityContext.getIdentity();
+    String podUid = GrpcIdentityContext.getPodUid();
+    String podName = GrpcIdentityContext.getPodName();
     String serviceName = request.getServiceName();
-    log.debug("Received request for service {}", serviceName);
+    log.debug("Received request for service {}, podUid={}, podName={}", serviceName, podUid, podName);
     if(callerIdentity == null || !callerIdentity.equals(serviceName)) {
       log.warn("Identity spoofing attempt = caller={}, requested={}", callerIdentity, serviceName);
       responseObserver.onError(Status.PERMISSION_DENIED.withDescription("Cannot request certificate for different service").asRuntimeException());
@@ -42,6 +44,7 @@ public class IdentityService extends CertificateIssuerServiceImplBase {
         .setPrivateKey(response.getPrivateKey())
         .setIssuingCa(response.getIssuingCa())
         .setSerialNumber(response.getSerialNumber())
+        .setPodUid(podUid != null ? podUid : "")
         .build();
       responseObserver.onNext(grpcResponse);
       responseObserver.onCompleted();

@@ -9,5 +9,4 @@ import lombok.extern.slf4j.Slf4j;
 public class IdentityRequest {
   @NotBlank(message = "Service name is required")
   private String serviceName;
-
 }

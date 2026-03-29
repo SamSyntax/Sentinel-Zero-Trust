@@ -114,12 +114,19 @@ public class K8sTokenReviewService {
   JsonNode kubernetes = root.get("kubernetes.io");
   String namespace = kubernetes.get("namespace").asText();
   String serviceAccount = kubernetes.get("serviceaccount").get("name").asText();
-  log.debug(">>>> Namespace={}, ServiceAccount={}", namespace, serviceAccount);
+  String podUid = null;
+  String podName = null;
+  JsonNode podNode = kubernetes.get("pod");
+  if (podNode != null) {
+    podUid = podNode.has("uid") ? podNode.get("uid").asText() : null;
+    podName = podNode.has("name") ? podNode.get("name").asText() : null;
+  }
+  log.debug(">>>> Namespace={}, ServiceAccount={}, PodUid={}, PodName={}", namespace, serviceAccount, podUid, podName);
 
   String spiffeId = String.format("spiffe://%s/ns/%s/sa/%s", trustDomain, namespace, serviceAccount);
 
-  return new SpiffeIdentity(namespace, serviceAccount, spiffeId);
+  return new SpiffeIdentity(namespace, serviceAccount, spiffeId, podUid, podName);
 
   }
-  public record SpiffeIdentity(String namespace, String serviceAccount, String spiffeId) {}
+  public record SpiffeIdentity(String namespace, String serviceAccount, String spiffeId, String podUid, String podName) {}
 }

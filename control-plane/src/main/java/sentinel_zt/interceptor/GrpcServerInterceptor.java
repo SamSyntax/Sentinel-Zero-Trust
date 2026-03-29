@@ -52,11 +52,13 @@ public class GrpcServerInterceptor implements ServerInterceptor {
     try {
       if (k8sService.validateToken(token)) {
         SpiffeIdentity spiffeId = k8sService.getSpiffeIdentity(token);
-        log.debug(">>>> SpiffeId={} <<<<", spiffeId.spiffeId());
-        Context context = GrpcIdentityContext.withIdentity(spiffeId.spiffeId());
+        log.debug(">>>> SpiffeId={}, PodUid={}, PodName={} <<<<", spiffeId.spiffeId(), spiffeId.podUid(), spiffeId.podName());
+        Context context = GrpcIdentityContext.withIdentity(spiffeId.spiffeId(), spiffeId.podUid(), spiffeId.podName());
         MDC.put("serviceIdentity", spiffeId.spiffeId());
+        MDC.put("podUid", spiffeId.podUid() != null ? spiffeId.podUid() : "unknown");
+        MDC.put("podName", spiffeId.podName() != null ? spiffeId.podName() : "unknown");
         MDC.put("traceId", java.util.UUID.randomUUID().toString());
-        log.info("gRPC request authorized - serviceName={}, method={}, clientIp={}", spiffeId.spiffeId(), call.getMethodDescriptor().getFullMethodName(), clientIp);
+        log.info("gRPC request authorized - serviceName={}, podUid={}, podName={}, method={}, clientIp={}", spiffeId.spiffeId(), spiffeId.podUid(), spiffeId.podName(), call.getMethodDescriptor().getFullMethodName(), clientIp);
         auditService.logAuthenticationAttempt(spiffeId.spiffeId(), true, null);
 
         return Contexts.interceptCall(context, call, metadata, next);
