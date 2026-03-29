@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v6.33.1
-// source: proto/certificate_issue_service.proto
+// source: certificate_issue_service.proto
 
 package proto
 
@@ -118,5 +118,5 @@ var CertificateIssuerService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/certificate_issue_service.proto",
+	Metadata: "certificate_issue_service.proto",
 }

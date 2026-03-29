@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.1
-// source: proto/certificate_issue_service.proto
+// source: certificate_issue_service.proto
 
 package proto
 
@@ -30,7 +30,7 @@ type CertificateRequest struct {
 
 func (x *CertificateRequest) Reset() {
 	*x = CertificateRequest{}
-	mi := &file_proto_certificate_issue_service_proto_msgTypes[0]
+	mi := &file_certificate_issue_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42,7 +42,7 @@ func (x *CertificateRequest) String() string {
 func (*CertificateRequest) ProtoMessage() {}
 
 func (x *CertificateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_certificate_issue_service_proto_msgTypes[0]
+	mi := &file_certificate_issue_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55,7 +55,7 @@ func (x *CertificateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertificateRequest.ProtoReflect.Descriptor instead.
 func (*CertificateRequest) Descriptor() ([]byte, []int) {
-	return file_proto_certificate_issue_service_proto_rawDescGZIP(), []int{0}
+	return file_certificate_issue_service_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *CertificateRequest) GetServiceName() string {
@@ -71,13 +71,14 @@ type CertificateResponse struct {
 	PrivateKey    string                 `protobuf:"bytes,2,opt,name=private_key,json=privateKey,proto3" json:"private_key,omitempty"`
 	IssuingCa     string                 `protobuf:"bytes,3,opt,name=issuing_ca,json=issuingCa,proto3" json:"issuing_ca,omitempty"`
 	SerialNumber  string                 `protobuf:"bytes,4,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
+	PodUid        string                 `protobuf:"bytes,5,opt,name=pod_uid,json=podUid,proto3" json:"pod_uid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CertificateResponse) Reset() {
 	*x = CertificateResponse{}
-	mi := &file_proto_certificate_issue_service_proto_msgTypes[1]
+	mi := &file_certificate_issue_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -89,7 +90,7 @@ func (x *CertificateResponse) String() string {
 func (*CertificateResponse) ProtoMessage() {}
 
 func (x *CertificateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_certificate_issue_service_proto_msgTypes[1]
+	mi := &file_certificate_issue_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -102,7 +103,7 @@ func (x *CertificateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertificateResponse.ProtoReflect.Descriptor instead.
 func (*CertificateResponse) Descriptor() ([]byte, []int) {
-	return file_proto_certificate_issue_service_proto_rawDescGZIP(), []int{1}
+	return file_certificate_issue_service_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CertificateResponse) GetCertificate() string {
@@ -133,42 +134,50 @@ func (x *CertificateResponse) GetSerialNumber() string {
 	return ""
 }
 
-var File_proto_certificate_issue_service_proto protoreflect.FileDescriptor
+func (x *CertificateResponse) GetPodUid() string {
+	if x != nil {
+		return x.PodUid
+	}
+	return ""
+}
 
-const file_proto_certificate_issue_service_proto_rawDesc = "" +
+var File_certificate_issue_service_proto protoreflect.FileDescriptor
+
+const file_certificate_issue_service_proto_rawDesc = "" +
 	"\n" +
-	"%proto/certificate_issue_service.proto\x12\vsentinel_zt\"7\n" +
+	"\x1fcertificate_issue_service.proto\x12\vsentinel_zt\"7\n" +
 	"\x12CertificateRequest\x12!\n" +
-	"\fservice_name\x18\x01 \x01(\tR\vserviceName\"\x9c\x01\n" +
+	"\fservice_name\x18\x01 \x01(\tR\vserviceName\"\xb5\x01\n" +
 	"\x13CertificateResponse\x12 \n" +
 	"\vcertificate\x18\x01 \x01(\tR\vcertificate\x12\x1f\n" +
 	"\vprivate_key\x18\x02 \x01(\tR\n" +
 	"privateKey\x12\x1d\n" +
 	"\n" +
 	"issuing_ca\x18\x03 \x01(\tR\tissuingCa\x12#\n" +
-	"\rserial_number\x18\x04 \x01(\tR\fserialNumber2o\n" +
+	"\rserial_number\x18\x04 \x01(\tR\fserialNumber\x12\x17\n" +
+	"\apod_uid\x18\x05 \x01(\tR\x06podUid2o\n" +
 	"\x18CertificateIssuerService\x12S\n" +
 	"\x0egetCertificate\x12\x1f.sentinel_zt.CertificateRequest\x1a .sentinel_zt.CertificateResponseB\fZ\n" +
 	"grpc/protob\x06proto3"
 
 var (
-	file_proto_certificate_issue_service_proto_rawDescOnce sync.Once
-	file_proto_certificate_issue_service_proto_rawDescData []byte
+	file_certificate_issue_service_proto_rawDescOnce sync.Once
+	file_certificate_issue_service_proto_rawDescData []byte
 )
 
-func file_proto_certificate_issue_service_proto_rawDescGZIP() []byte {
-	file_proto_certificate_issue_service_proto_rawDescOnce.Do(func() {
-		file_proto_certificate_issue_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_certificate_issue_service_proto_rawDesc), len(file_proto_certificate_issue_service_proto_rawDesc)))
+func file_certificate_issue_service_proto_rawDescGZIP() []byte {
+	file_certificate_issue_service_proto_rawDescOnce.Do(func() {
+		file_certificate_issue_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_certificate_issue_service_proto_rawDesc), len(file_certificate_issue_service_proto_rawDesc)))
 	})
-	return file_proto_certificate_issue_service_proto_rawDescData
+	return file_certificate_issue_service_proto_rawDescData
 }
 
-var file_proto_certificate_issue_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_proto_certificate_issue_service_proto_goTypes = []any{
+var file_certificate_issue_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_certificate_issue_service_proto_goTypes = []any{
 	(*CertificateRequest)(nil),  // 0: sentinel_zt.CertificateRequest
 	(*CertificateResponse)(nil), // 1: sentinel_zt.CertificateResponse
 }
-var file_proto_certificate_issue_service_proto_depIdxs = []int32{
+var file_certificate_issue_service_proto_depIdxs = []int32{
 	0, // 0: sentinel_zt.CertificateIssuerService.getCertificate:input_type -> sentinel_zt.CertificateRequest
 	1, // 1: sentinel_zt.CertificateIssuerService.getCertificate:output_type -> sentinel_zt.CertificateResponse
 	1, // [1:2] is the sub-list for method output_type
@@ -178,26 +187,26 @@ var file_proto_certificate_issue_service_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_proto_certificate_issue_service_proto_init() }
-func file_proto_certificate_issue_service_proto_init() {
-	if File_proto_certificate_issue_service_proto != nil {
+func init() { file_certificate_issue_service_proto_init() }
+func file_certificate_issue_service_proto_init() {
+	if File_certificate_issue_service_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_certificate_issue_service_proto_rawDesc), len(file_proto_certificate_issue_service_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_certificate_issue_service_proto_rawDesc), len(file_certificate_issue_service_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_certificate_issue_service_proto_goTypes,
-		DependencyIndexes: file_proto_certificate_issue_service_proto_depIdxs,
-		MessageInfos:      file_proto_certificate_issue_service_proto_msgTypes,
+		GoTypes:           file_certificate_issue_service_proto_goTypes,
+		DependencyIndexes: file_certificate_issue_service_proto_depIdxs,
+		MessageInfos:      file_certificate_issue_service_proto_msgTypes,
 	}.Build()
-	File_proto_certificate_issue_service_proto = out.File
-	file_proto_certificate_issue_service_proto_goTypes = nil
-	file_proto_certificate_issue_service_proto_depIdxs = nil
+	File_certificate_issue_service_proto = out.File
+	file_certificate_issue_service_proto_goTypes = nil
+	file_certificate_issue_service_proto_depIdxs = nil
 }

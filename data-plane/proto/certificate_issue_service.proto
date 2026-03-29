@@ -17,4 +17,5 @@ message CertificateResponse {
   string private_key = 2;
   string issuing_ca = 3;
   string serial_number = 4;
+  string pod_uid = 5;
 }
