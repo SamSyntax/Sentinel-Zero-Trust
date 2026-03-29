@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sentinel-control-plane-access
+spec:
+  podSelector:
+    matchLabels:
+      app: control-plane
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow REST API access from sentinel-injected pods (data-plane sidecar proxies).
+    - from:
+        - podSelector:
+            matchLabels:
+              sentinel-zt: "injected"
+      ports:
+        - protocol: TCP
+          port: 8081
+    # Allow gRPC access from sentinel-injected pods
+    - from:
+        - podSelector:
+            matchLabels:
+              sentinel-zt: "injected"
+      ports:
+        - protocol: TCP
+          port: 9090
+    # Allow webhook calls from Kubernetes API server [future me don't forget about that]
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kubernetes
+      ports:
+        - protocol: TCP
+          port: 8081
