@@ -4,9 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	// "sentinel-zt/data-plane/internal/grpc/proto"
-	"sentinel-zt/data-plane/proto"
 	"sentinel-zt/data-plane/internal/utils"
+	"sentinel-zt/data-plane/proto"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -14,7 +13,12 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-func FetchIdentityGRPC(ctx context.Context, target string, token utils.ServiceAccountToken, serviceName string) (tls.Certificate, error) {
+type IdentityResult struct {
+	Certificate tls.Certificate
+	PodUid      string
+}
+
+func FetchIdentityGRPC(ctx context.Context, target string, token utils.ServiceAccountToken, serviceName string) (IdentityResult, error) {
 	md := metadata.Pairs(
 		"x-sentinel-token", fmt.Sprintf("Bearer %s", strings.TrimSpace(string(token))),
 	)
@@ -26,8 +30,16 @@ func FetchIdentityGRPC(ctx context.Context, target string, token utils.ServiceAc
 		ServiceName: serviceName,
 	})
 	if err != nil {
-		return tls.Certificate{}, err
+		return IdentityResult{}, err
 	}
 
-	return tls.X509KeyPair([]byte(resp.GetCertificate()), []byte(resp.GetPrivateKey()))
+	cert, err := tls.X509KeyPair([]byte(resp.GetCertificate()), []byte(resp.GetPrivateKey()))
+	if err != nil {
+		return IdentityResult{}, err
+	}
+
+	return IdentityResult{
+		Certificate: cert,
+		PodUid:      resp.GetPodUid(),
+	}, nil
 }

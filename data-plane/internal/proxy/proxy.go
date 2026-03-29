@@ -37,8 +37,9 @@ type IdentityResponse struct {
 }
 
 type CertManager struct {
-	certMutex   sync.RWMutex
-	currentCert *tls.Certificate
+	certMutex     sync.RWMutex
+	currentCert   *tls.Certificate
+	currentPodUid string
 }
 
 func (cm *CertManager) GetCurrentCertificate() *tls.Certificate {
@@ -49,15 +50,18 @@ func (cm *CertManager) GetCurrentCertificate() *tls.Certificate {
 
 func (cm *CertManager) StartRotation(ctx context.Context, token utils.ServiceAccountToken, serviceName string, target string, l *slog.Logger) {
 	for {
-		if cm.currentCert.Certificate == nil {
-			cert, err := grpc.FetchIdentityGRPC(ctx, target, token, serviceName)
+		if cm.currentCert == nil || cm.currentCert.Certificate == nil {
+			result, err := grpc.FetchIdentityGRPC(ctx, target, token, serviceName)
 			if err != nil {
 				l.WarnContext(ctx, "initial certificate fetch failed, retrying", slog.String("error", err.Error()), slog.String("service", serviceName))
 				time.Sleep(time.Minute * 1)
 				continue
 			}
-			cm.currentCert = &cert
-			l.InfoContext(ctx, "initial certificate fetched", slog.String("service", serviceName))
+			cm.certMutex.Lock()
+			cm.currentCert = &result.Certificate
+			cm.currentPodUid = result.PodUid
+			cm.certMutex.Unlock()
+			l.InfoContext(ctx, "initial certificate fetched", slog.String("service", serviceName), slog.String("podUid", result.PodUid))
 		}
 		cm.certMutex.RLock()
 		leaf, err := x509.ParseCertificate(cm.currentCert.Certificate[0])
@@ -80,17 +84,18 @@ func (cm *CertManager) StartRotation(ctx context.Context, token utils.ServiceAcc
 		select {
 		case <-time.After(sleepDuration):
 			start := time.Now()
-			newCert, err := grpc.FetchIdentityGRPC(ctx, target, token, serviceName)
+			result, err := grpc.FetchIdentityGRPC(ctx, target, token, serviceName)
 			duration := time.Since(start)
 			if err != nil {
 				l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
 				time.Sleep(time.Minute * 1)
 				continue
 			} else {
-				l.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.Duration("duration", duration))
+				l.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.String("podUid", result.PodUid), slog.Duration("duration", duration))
 			}
 			cm.certMutex.Lock()
-			cm.currentCert = &newCert
+			cm.currentCert = &result.Certificate
+			cm.currentPodUid = result.PodUid
 			cm.certMutex.Unlock()
 		case <-ctx.Done():
 			return
@@ -210,11 +215,11 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, logger *slog.Logger) 
 	}
 	spiffeId := claims.GetSpiffeId(cfg.TrustedDomain)
 	// initialCert, err := fetchIdentity(cfg.ControlPlaneURL, token, "proxy")
-	initialCert, err := grpc.FetchIdentityGRPC(ctx, cfg.TargetGRPC, token, spiffeId)
+	result, err := grpc.FetchIdentityGRPC(ctx, cfg.TargetGRPC, token, spiffeId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch initial certificate: %w", err)
 	}
-	cm := &CertManager{currentCert: &initialCert}
+	cm := &CertManager{currentCert: &result.Certificate, currentPodUid: result.PodUid}
 	go cm.StartRotation(ctx, token, spiffeId, cfg.TargetGRPC, logger)
 	proxy := &Proxy{
 		cfg:         cfg,
