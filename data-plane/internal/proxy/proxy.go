@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	certmanager "sentinel-zt/data-plane/internal/cert_manager"
 	"sentinel-zt/data-plane/internal/config"
 	"sentinel-zt/data-plane/internal/grpc"
 	"sentinel-zt/data-plane/internal/logger"
@@ -23,8 +24,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	"k8s.io/client-go/kubernetes"
 )
 
 type IdentityRequest struct {
@@ -36,83 +35,6 @@ type IdentityResponse struct {
 	PrivateKey   string `json:"privateKey"`
 	IssuingCa    string `json:"issuingCa"`
 	SerialNumber string `json:"serialNumber"`
-}
-
-type CertManager struct {
-	certMutex     sync.RWMutex
-	currentCert   *tls.Certificate
-	currentPodUid string
-}
-
-func (cm *CertManager) GetCurrentCertificate() *tls.Certificate {
-	cm.certMutex.RLock()
-	defer cm.certMutex.RUnlock()
-	return cm.currentCert
-}
-
-func (cm *CertManager) StartRotation(ctx context.Context, token *utils.ServiceAccountTokenContainer, namespace string, serviceName string, target string, clientset *kubernetes.Clientset, l *slog.Logger) {
-	for {
-		if cm.currentCert == nil || cm.currentCert.Certificate == nil {
-			result, err := grpc.FetchIdentityGRPC(ctx, target, token.Token, serviceName)
-			if err != nil {
-				l.WarnContext(ctx, "initial certificate fetch failed, retrying", slog.String("error", err.Error()), slog.String("service", serviceName))
-				time.Sleep(time.Minute * 1)
-				continue
-			}
-			cm.certMutex.Lock()
-			cm.currentCert = &result.Certificate
-			cm.currentPodUid = result.PodUid
-			cm.certMutex.Unlock()
-			l.InfoContext(ctx, "initial certificate fetched", slog.String("service", serviceName), slog.String("podUid", result.PodUid))
-		}
-		cm.certMutex.RLock()
-		leaf, err := x509.ParseCertificate(cm.currentCert.Certificate[0])
-		cm.certMutex.RUnlock()
-		if err != nil {
-			l.WarnContext(ctx, "failed to parse certificate, will re-fetch", slog.String("error", err.Error()), slog.String("service", serviceName))
-			time.Sleep(time.Minute * 1)
-			continue
-		}
-		renewTime := leaf.NotAfter.Add(-5 * time.Minute)
-		sleepDuration := time.Until(renewTime)
-		if sleepDuration <= 0 {
-			sleepDuration = 10 * time.Second
-		}
-
-		l.DebugContext(ctx, "certificate rotation scheduled",
-			slog.String("service", serviceName),
-			slog.Time("renewal_time", renewTime),
-			slog.Duration("sleep_duration", sleepDuration))
-		select {
-		case <-time.After(sleepDuration):
-			start := time.Now()
-			newToken, err := utils.RequestToken(clientset, namespace, serviceName)
-			duration := time.Since(start)
-			if err != nil {
-				l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
-				time.Sleep(time.Minute * 1)
-				continue
-			}
-			token.Mu.Lock()
-			token.Token = newToken
-			token.Mu.Unlock()
-			result, err := grpc.FetchIdentityGRPC(ctx, target, token.Token, serviceName)
-			duration = time.Since(start)
-			if err != nil {
-				l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
-				time.Sleep(time.Minute * 1)
-				continue
-			} else {
-				l.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.String("podUid", result.PodUid), slog.Duration("duration", duration))
-			}
-			cm.certMutex.Lock()
-			cm.currentCert = &result.Certificate
-			cm.currentPodUid = result.PodUid
-			cm.certMutex.Unlock()
-		case <-ctx.Done():
-			return
-		}
-	}
 }
 
 func fetchIdentity(controlPlaneURL string, token utils.ServiceAccountToken, serviceName string) (tls.Certificate, error) {
@@ -202,14 +124,14 @@ func coreHandlers(proxy *httputil.ReverseProxy, l *slog.Logger) *http.ServeMux {
 
 type Proxy struct {
 	cfg         config.ProxyConfig
-	certManager *CertManager
+	certManager *certmanager.CertManager
 	caCertPool  *x509.CertPool
 	logger      *slog.Logger
 	ctx         context.Context
 	stopChan    chan struct{}
 }
 
-func NewProxy(ctx context.Context, cfg config.ProxyConfig, logger *slog.Logger) (*Proxy, error) {
+func NewProxy(ctx context.Context, cfg config.ProxyConfig, fetcher grpc.CertFetcher, tokenProvider utils.TokenProvider, logger *slog.Logger) (*Proxy, error) {
 	caCert, err := os.ReadFile(cfg.CACertPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Root CA: %w", err)
@@ -217,33 +139,29 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, logger *slog.Logger) 
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	statictoken, _ := utils.GetServiceAccountToken(logger)
 	clientset, err := utils.CreateClientset()
 	if err != nil {
 		return nil, err
 	}
-	token, err := utils.RequestToken(clientset, cfg.KubernetesNamespace, cfg.ServiceName)
+	token, err := tokenProvider.RequestToken(clientset, cfg.KubernetesNamespace, cfg.ServiceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service account token: %w", err)
 	}
 	tokenContainer := &utils.ServiceAccountTokenContainer{
 		Token: token,
 	}
-	oldClaims, err := utils.ParseJWT(string(statictoken))
 	claims, err := utils.ParseJWT(string(tokenContainer.Token))
 	if err != nil {
 		return nil, err
 	}
-	oldSpiffeId := oldClaims.GetSpiffeId(cfg.TrustedDomain)
 	spiffeId := claims.GetSpiffeId(cfg.TrustedDomain)
-	logger.Debug("[DEBUG]", "Claims from short lived", fmt.Sprintf("Old Spiffe: %s", oldSpiffeId), fmt.Sprintf("Spiffe: %s", spiffeId), "foo")
 	// initialCert, err := fetchIdentity(cfg.ControlPlaneURL, token, "proxy")
-	result, err := grpc.FetchIdentityGRPC(ctx, cfg.TargetGRPC, tokenContainer.Token, spiffeId)
+	result, err := fetcher.Fetch(ctx, tokenContainer.Token, spiffeId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch initial certificate: %w", err)
 	}
-	cm := &CertManager{currentCert: &result.Certificate, currentPodUid: result.PodUid}
-	go cm.StartRotation(ctx, tokenContainer, cfg.KubernetesNamespace, spiffeId, cfg.TargetGRPC, clientset, logger)
+	cm := &certmanager.CertManager{CurrentCert: &result.Certificate, CurrentPodUid: result.PodUid, RetryDelay: 1 * time.Minute, RenewalWindow: 5 * time.Minute}
+	go cm.StartRotation(ctx, fetcher, tokenProvider, tokenContainer, cfg.KubernetesNamespace, spiffeId, cfg.TargetGRPC, clientset, logger)
 	proxy := &Proxy{
 		cfg:         cfg,
 		logger:      logger,
