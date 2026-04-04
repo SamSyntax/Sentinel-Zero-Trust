@@ -7,16 +7,17 @@ import (
 )
 
 type ProxyConfig struct {
-	ProxyPort       int
-	InboundPort     int
-	OutboundPort    int
-	ServiceName     string
-	CACertPath      string
-	TargetURL       string
-	TargetGRPC      string
-	TrustedDomain   string
-	ControlPlaneURL string
-	LoggerConfig    LoggerConfig
+	ProxyPort           int
+	InboundPort         int
+	OutboundPort        int
+	ServiceName         string
+	KubernetesNamespace string
+	CACertPath          string
+	TargetURL           string
+	TargetGRPC          string
+	TrustedDomain       string
+	ControlPlaneURL     string
+	LoggerConfig        LoggerConfig
 }
 type LoggerConfig struct {
 	Level       string
@@ -42,6 +43,7 @@ func (pc *ProxyConfig) Load() {
 	pc.ControlPlaneURL = os.Getenv("CONTROL_PLANE_URL")
 	pc.CACertPath = os.Getenv("CA_CERT_PATH")
 	pc.TrustedDomain = os.Getenv("SPIFFE_TRUSTED_DOMAIN")
+	pc.KubernetesNamespace = os.Getenv("KUBERNETES_NAMESPACE")
 
 	if port := os.Getenv("INBOUND_PORT"); port != "" {
 		if p, err := strconv.Atoi(port); err == nil {
