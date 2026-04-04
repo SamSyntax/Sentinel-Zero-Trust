@@ -16,7 +16,9 @@ type ServiceAccountTokenContainer struct {
 	Token ServiceAccountToken
 }
 
-func RequestToken(clientset *kubernetes.Clientset, namespace, serviceAccount string) (ServiceAccountToken, error) {
+type RealTokenProvider struct{}
+
+func (tp *RealTokenProvider) RequestToken(clientset *kubernetes.Clientset, namespace, serviceAccount string) (ServiceAccountToken, error) {
 	ctx := context.Background()
 	expirationSeconds := int64(60 * 60) // 1 hour
 	tokenRequest := &authv1.TokenRequest{

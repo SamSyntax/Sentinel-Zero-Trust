@@ -39,6 +39,7 @@ func ParseJWT(tokenString string) (*KubernetesClaims, error) {
 	if !ok {
 		return nil, fmt.Errorf("failed to parse claims")
 	}
+
 	return claims, nil
 }
 
