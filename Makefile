@@ -50,7 +50,10 @@ build-init-image:
 	$(MAKE) -C $(INIT_CONTAINER_BUILD_DIR) build-docker -j $(nproc)
 	kind load docker-image kind.local/sentinel-init:latest --name sentinel-zt
 
-build-images: build-control-plane-image build-data-plane-image
+build-dummy-services:
+	dummy-services/users-service/k8s/deploy.sh
+
+build-images: build-control-plane-image build-data-plane-image build-dummy-services
 
 reload-pod-images: build-images
 
