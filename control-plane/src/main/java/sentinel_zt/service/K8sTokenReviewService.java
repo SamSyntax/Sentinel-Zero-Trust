@@ -1,5 +1,8 @@
 package sentinel_zt.service;
 
+
+import java.util.List;
+
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -38,6 +41,7 @@ public class K8sTokenReviewService {
     try {
       TokenReview tr = new TokenReviewBuilder()
         .withNewSpec()
+        .withAudiences(List.of("api"))
         .withToken(token)
         .endSpec()
         .build();
