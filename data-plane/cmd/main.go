@@ -5,8 +5,10 @@ import (
 	"log/slog"
 	"os"
 	"sentinel-zt/data-plane/internal/config"
+	"sentinel-zt/data-plane/internal/grpc"
 	"sentinel-zt/data-plane/internal/logger"
 	"sentinel-zt/data-plane/internal/proxy"
+	"sentinel-zt/data-plane/internal/utils"
 	"time"
 )
 
@@ -53,14 +55,19 @@ func main() {
 	}
 	cfg.Load()
 
+	fetcher := &grpc.RealCertFetcher{
+		Target: cfg.TargetGRPC,
+	}
+	tokenProvider := &utils.RealTokenProvider{}
+
 	logger.Info("starting sentinel-zt proxy", slog.String("mode", proxyMode), slog.Int("port", port))
-	p, err := proxy.NewProxy(ctx, cfg, logger)
+	p, err := proxy.NewProxy(ctx, cfg, fetcher, tokenProvider, logger)
 	if err != nil {
 		logger.Error("failed to create proxy", slog.String("error", err.Error()))
 		for {
 			logger.Info("Retrying to create proxy in 10 seconds...")
 			time.Sleep(10 * time.Second)
-			p, err = proxy.NewProxy(ctx, cfg, logger)
+			p, err = proxy.NewProxy(ctx, cfg, fetcher, tokenProvider, logger)
 			if err == nil {
 				break
 			}
