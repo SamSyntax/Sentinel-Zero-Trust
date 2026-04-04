@@ -18,12 +18,16 @@ type IdentityResult struct {
 	PodUid      string
 }
 
-func FetchIdentityGRPC(ctx context.Context, target string, token utils.ServiceAccountToken, serviceName string) (IdentityResult, error) {
+type RealCertFetcher struct{
+	Target string
+}
+
+func (cf *RealCertFetcher) Fetch(ctx context.Context, token utils.ServiceAccountToken, serviceName string) (IdentityResult, error) {
 	md := metadata.Pairs(
 		"x-sentinel-token", fmt.Sprintf("Bearer %s", strings.TrimSpace(string(token))),
 	)
 	reqCtx := metadata.NewOutgoingContext(ctx, md)
-	conn, _ := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, _ := grpc.NewClient(cf.Target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	defer conn.Close()
 	client := proto.NewCertificateIssuerServiceClient(conn)
 	resp, err := client.GetCertificate(reqCtx, &proto.CertificateRequest{
