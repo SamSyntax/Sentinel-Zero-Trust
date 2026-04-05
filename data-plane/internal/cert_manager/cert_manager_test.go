@@ -18,8 +18,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"k8s.io/client-go/kubernetes"
 )
 
 type mockCertFetcher struct {
@@ -56,7 +54,7 @@ type mockTokenProvider struct {
 	errors    []error
 }
 
-func (m *mockTokenProvider) RequestToken(clientset *kubernetes.Clientset, namespace, serviceAccount string) (utils.ServiceAccountToken, error) {
+func (m *mockTokenProvider) RequestToken(namespace, serviceAccount string) (utils.ServiceAccountToken, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	idx := m.callCount
@@ -143,7 +141,7 @@ func TestStartRotation_InitialFetchSuccess(t *testing.T) {
 	cm := &certmanager.CertManager{
 		RetryDelay: 10 * time.Millisecond,
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", nil, noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", noopLogger())
 	time.Sleep(200 * time.Millisecond)
 	if cm.GetCurrentCertificate() == nil {
 		t.Error("expected certificate to be set after initial fetch")
@@ -171,12 +169,13 @@ func TestStartRotation_InitialFetchRetriesOnError(t *testing.T) {
 	provider := &mockTokenProvider{}
 	token := &utils.ServiceAccountTokenContainer{
 		Token: "token",
+		Mu:    &sync.RWMutex{},
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cm := &certmanager.CertManager{
 		RetryDelay: 10 * time.Millisecond,
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", nil, noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", noopLogger())
 	time.Sleep(61 * time.Millisecond)
 
 	if cm.GetCurrentCertificate() == nil {
@@ -209,7 +208,7 @@ func TestStartRotation_RotateCertWhenNearExpiry(t *testing.T) {
 		RenewalWindow: 200 * time.Millisecond,
 		RenewNow:      make(chan struct{}, 1),
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", nil, noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", noopLogger())
 	time.Sleep(50 * time.Millisecond)
 	cm.RenewNow <- struct{}{}
 	time.Sleep(50 * time.Millisecond)
@@ -235,7 +234,7 @@ func TestStartRotation_StopsOnContextCancel(t *testing.T) {
 	cm := &certmanager.CertManager{
 		RetryDelay: 10 * time.Millisecond,
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", nil, noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", noopLogger())
 	time.Sleep(200 * time.Millisecond)
 	cancel()
 	time.Sleep(200 * time.Millisecond)

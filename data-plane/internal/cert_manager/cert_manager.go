@@ -9,8 +9,6 @@ import (
 	"sentinel-zt/data-plane/internal/utils"
 	"sync"
 	"time"
-
-	"k8s.io/client-go/kubernetes"
 )
 
 type CertManager struct {
@@ -28,7 +26,7 @@ func (cm *CertManager) GetCurrentCertificate() *tls.Certificate {
 	return cm.CurrentCert
 }
 
-func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetcher, tokenProvider utils.TokenProvider, token *utils.ServiceAccountTokenContainer, namespace string, serviceName string, target string, clientset *kubernetes.Clientset, l *slog.Logger) {
+func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetcher, tokenProvider utils.TokenProvider, token *utils.ServiceAccountTokenContainer, namespace string, serviceName string, target string, l *slog.Logger) {
 	for {
 		if cm.CurrentCert == nil || cm.CurrentCert.Certificate == nil {
 			result, err := fetcher.Fetch(ctx, token.Token, serviceName)
@@ -72,7 +70,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 			return
 		}
 		start := time.Now()
-		newToken, err := tokenProvider.RequestToken(clientset, namespace, serviceName)
+		newToken, err := tokenProvider.RequestToken(namespace, serviceName)
 		duration := time.Since(start)
 		if err != nil {
 			l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
