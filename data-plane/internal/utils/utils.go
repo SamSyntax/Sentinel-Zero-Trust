@@ -1,13 +1,9 @@
 package utils
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
-	"log/slog"
 	"net"
-	"net/http"
-	"os"
 	"syscall"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -43,9 +39,12 @@ func ParseJWT(tokenString string) (*KubernetesClaims, error) {
 	return claims, nil
 }
 
-func (k *KubernetesClaims) GetSpiffeId(trustedDomain string) string {
+func (k *KubernetesClaims) GetSpiffeId(trustedDomain string) (string, error) {
+	if trustedDomain == "" {
+		return "", fmt.Errorf("trusted domain is empty")
+	}
 	spiffeId := fmt.Sprintf("spiffe://%s/ns/%s/sa/%s", trustedDomain, k.Kubernetes.Namespace, k.Kubernetes.ServiceAccount.Name)
-	return spiffeId
+	return spiffeId, nil
 }
 
 func GetHostAddress() string {
@@ -67,27 +66,24 @@ func GetHostAddress() string {
 	return ip.To4().String()
 }
 
-func TestService(l *slog.Logger) {
-	mux := http.NewServeMux()
-	ip := GetHostAddress()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Target application %s reached successfully.\n", ip)
-	})
-	err := http.ListenAndServe(":8080", mux)
-	if err != nil {
-		l.ErrorContext(context.Background(), "failed to serve", slog.String("error", err.Error()))
-	}
-}
-
-func GetServiceAccountToken(l *slog.Logger) (ServiceAccountToken, error) {
-	file, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
-	if err != nil {
-		l.WarnContext(context.Background(), "failed to get pod service account token", slog.String("error", err.Error()))
-		return "", err
-	}
-	l.InfoContext(context.Background(), "service account token loaded successfully")
-	return ServiceAccountToken(file), nil
-}
+/*
+*
+*
+*
+* Not used anymore, I moved to the short lived tokens requested via the k8s API
+*
+*
+*
+ func GetServiceAccountToken(l *slog.Logger) (ServiceAccountToken, error) {
+ 	file, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+ 	if err != nil {
+ 		l.WarnContext(context.Background(), "failed to get pod service account token", slog.String("error", err.Error()))
+ 		return "", err
+ 	}
+ 	l.InfoContext(context.Background(), "service account token loaded successfully")
+ 	return ServiceAccountToken(file), nil
+ }
+*/
 
 func GetOriginalDest(conn *net.TCPConn) (net.Addr, error) {
 	file, err := conn.File()
