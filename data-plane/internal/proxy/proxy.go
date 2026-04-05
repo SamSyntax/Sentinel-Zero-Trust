@@ -96,7 +96,7 @@ func createProxy(targetURL *url.URL, l *slog.Logger) *httputil.ReverseProxy {
 	return proxy
 }
 
-func coreHandlers(proxy *httputil.ReverseProxy, l *slog.Logger) *http.ServeMux {
+func CoreHandlers(proxy *httputil.ReverseProxy, l *slog.Logger) *http.ServeMux {
 	mainHandler := http.NewServeMux()
 	mainHandler.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -139,11 +139,7 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, fetcher grpc.CertFetc
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	clientset, err := utils.CreateClientset()
-	if err != nil {
-		return nil, err
-	}
-	token, err := tokenProvider.RequestToken(clientset, cfg.KubernetesNamespace, cfg.ServiceName)
+	token, err := tokenProvider.RequestToken(cfg.KubernetesNamespace, cfg.ServiceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service account token: %w", err)
 	}
@@ -154,14 +150,17 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, fetcher grpc.CertFetc
 	if err != nil {
 		return nil, err
 	}
-	spiffeId := claims.GetSpiffeId(cfg.TrustedDomain)
+	spiffeId, err := claims.GetSpiffeId(cfg.TrustedDomain)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get spiffe id: %w", err)
+	}
 	// initialCert, err := fetchIdentity(cfg.ControlPlaneURL, token, "proxy")
 	result, err := fetcher.Fetch(ctx, tokenContainer.Token, spiffeId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch initial certificate: %w", err)
 	}
 	cm := &certmanager.CertManager{CurrentCert: &result.Certificate, CurrentPodUid: result.PodUid, RetryDelay: 1 * time.Minute, RenewalWindow: 5 * time.Minute}
-	go cm.StartRotation(ctx, fetcher, tokenProvider, tokenContainer, cfg.KubernetesNamespace, cfg.ServiceName, cfg.TargetGRPC, clientset, logger)
+	go cm.StartRotation(ctx, fetcher, tokenProvider, tokenContainer, cfg.KubernetesNamespace, cfg.ServiceName, cfg.TargetGRPC, logger)
 	proxy := &Proxy{
 		cfg:         cfg,
 		logger:      logger,
@@ -183,9 +182,9 @@ func (p *Proxy) Run() error {
 
 func (p *Proxy) runDirectMode() error {
 	targetURL, _ := url.Parse(p.cfg.TargetURL)
-	proxyHandler := createProxyHandler(targetURL, p.logger)
+	proxyHandler := CreateProxyHandler(targetURL, p.logger)
 
-	tlsConfig := p.getInboundTLSConfig()
+	tlsConfig := p.GetInboundTLSConfig()
 	server := &http.Server{
 		Addr:      fmt.Sprintf(":%d", p.cfg.ProxyPort),
 		Handler:   proxyHandler,
@@ -212,7 +211,7 @@ func (p *Proxy) runRedirectMode() error {
 	if podIP == "" {
 		p.logger.Warn("POD_IP not set, cannot determine inbound/outbound")
 	}
-	tlsConfig := p.getInboundTLSConfig()
+	tlsConfig := p.GetInboundTLSConfig()
 	ln, err := tls.Listen("tcp", fmt.Sprintf(":%d", p.cfg.InboundPort), tlsConfig)
 	if err != nil {
 		return fmt.Errorf("failed to listen on rediracted port %d: %w", p.cfg.InboundPort, err)
@@ -228,7 +227,7 @@ func (p *Proxy) runRedirectMode() error {
 	}
 }
 
-func (p *Proxy) getInboundTLSConfig() *tls.Config {
+func (p *Proxy) GetInboundTLSConfig() *tls.Config {
 	return &tls.Config{
 		GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			return p.certManager.GetCurrentCertificate(), nil
@@ -249,7 +248,7 @@ func (p *Proxy) getOutboundTLSConfig(serverName string) *tls.Config {
 	}
 }
 
-func createProxyHandler(targetURL *url.URL, l *slog.Logger) http.Handler {
+func CreateProxyHandler(targetURL *url.URL, l *slog.Logger) http.Handler {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		l.ErrorContext(r.Context(), "proxy_upstream_error",
@@ -321,12 +320,12 @@ func (p *Proxy) forwardOutbound(clientConn net.Conn, dst net.Addr) {
 	}
 
 	clientCert := connState.PeerCertificates[0]
-	clientIdentity := extractIdentity(clientCert)
+	clientIdentity := ExtractIdentity(clientCert)
 	p.logger.Info("outbound request", slog.String("client_identity", clientIdentity), slog.String("destination", dst.String()))
 	outboundTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{*p.certManager.GetCurrentCertificate()},
 		RootCAs:      p.caCertPool,
-		ServerName:   extractServerName(dst.String()),
+		ServerName:   ExtractServerName(dst.String()),
 		MinVersion:   tls.VersionTLS13,
 	}
 	dialAddr := dst.String()
@@ -370,7 +369,7 @@ func (p *Proxy) proxyCopy(dst, src net.Conn, name string) {
 	wg.Wait()
 }
 
-func extractServerName(addr string) string {
+func ExtractServerName(addr string) string {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return addr
@@ -378,7 +377,7 @@ func extractServerName(addr string) string {
 	return host
 }
 
-func extractIdentity(cert *x509.Certificate) string {
+func ExtractIdentity(cert *x509.Certificate) string {
 	for _, san := range cert.DNSNames {
 		if strings.HasPrefix(san, "spiffe://") {
 			return san
