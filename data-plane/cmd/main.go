@@ -5,11 +5,14 @@ import (
 	"log/slog"
 	"os"
 	"sentinel-zt/data-plane/internal/config"
-	"sentinel-zt/data-plane/internal/grpc"
+	sgrpc "sentinel-zt/data-plane/internal/grpc"
 	"sentinel-zt/data-plane/internal/logger"
 	"sentinel-zt/data-plane/internal/proxy"
 	"sentinel-zt/data-plane/internal/utils"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -55,10 +58,24 @@ func main() {
 	}
 	cfg.Load()
 
-	fetcher := &grpc.RealCertFetcher{
-		Target: cfg.TargetGRPC,
+	conn, err := grpc.NewClient(cfg.TargetGRPC, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		logger.Error("failed to connect to target", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
-	tokenProvider := &utils.RealTokenProvider{}
+	defer conn.Close()
+
+	fetcher := &sgrpc.RealCertFetcher{
+		GrpcClient: conn,
+	}
+	clientset, err := utils.CreateClientset()
+	if err != nil {
+		logger.Error("failed to create clientset", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	tokenProvider := &utils.RealTokenProvider{
+		Clientset: clientset,
+	}
 
 	logger.Info("starting sentinel-zt proxy", slog.String("mode", proxyMode), slog.Int("port", port))
 	p, err := proxy.NewProxy(ctx, cfg, fetcher, tokenProvider, logger)
