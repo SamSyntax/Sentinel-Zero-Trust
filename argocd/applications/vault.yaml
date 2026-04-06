@@ -7,14 +7,17 @@ metadata:
     argocd.argoproj.io/sync-wave: "-10"
 spec:
   project: default
-  source:
-    repoURL: git@github.com:SamSyntax/Sentinel-Zero-Trust.git
-    targetRevision: master
-    path: infra/k8s/vault
-    helm:
-      releaseName: vault
-      vaultFiles:
-        - values.yaml
+  sources:
+    - chart: vault
+      repoURL: https://helm.releases.hashicorp.com
+      targetRevision: 0.28.1
+      helm:
+        releaseName: vault
+        valueFiles:
+          - $values/infra/k8s/vault/vault-values.yaml
+    - repoURL: git@github.com:SamSyntax/Sentinel-Zero-Trust.git
+      targetRevision: master
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: default
