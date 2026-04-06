@@ -28,10 +28,11 @@ func (cm *CertManager) GetCurrentCertificate() *tls.Certificate {
 
 func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetcher, tokenProvider utils.TokenProvider, token *utils.ServiceAccountTokenContainer, namespace string, serviceName string, target string, l *slog.Logger) {
 	for {
-		l.DebugContext(ctx, "passed token", slog.String("token", string(token.Token)))
-		if token == nil {
+		cm.CertMutex.Lock()
+		if token == nil || token.Mu == nil || token.Token == "" {
 			l.ErrorContext(ctx, "can't start rotation", slog.String("error", "no service account token"), slog.String("service", serviceName))
 			time.Sleep(cm.RetryDelay)
+			cm.CertMutex.Unlock()
 			continue
 		}
 		if cm.CurrentCert == nil || cm.CurrentCert.Certificate == nil {
@@ -39,13 +40,13 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 			if err != nil {
 				l.WarnContext(ctx, "initial certificate fetch failed, retrying", slog.String("error", err.Error()), slog.String("service", serviceName))
 				time.Sleep(cm.RetryDelay)
+				cm.CertMutex.Unlock()
 				continue
 			}
-			cm.CertMutex.Lock()
 			cm.CurrentCert = &result.Certificate
 			cm.CurrentPodUid = result.PodUid
-			cm.CertMutex.Unlock()
 			l.InfoContext(ctx, "initial certificate fetched", slog.String("service", serviceName), slog.String("podUid", result.PodUid))
+			cm.CertMutex.Unlock()
 		}
 		cm.CertMutex.RLock()
 		leaf, err := x509.ParseCertificate(cm.CurrentCert.Certificate[0])
@@ -53,6 +54,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 		if err != nil {
 			l.WarnContext(ctx, "failed to parse certificate, will re-fetch", slog.String("error", err.Error()), slog.String("service", serviceName))
 			time.Sleep(cm.RetryDelay)
+			cm.CertMutex.Unlock()
 			continue
 		}
 		window := cm.RenewalWindow
@@ -73,6 +75,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 		case <-time.After(sleepDuration):
 		case <-cm.RenewNow:
 		case <-ctx.Done():
+			cm.CertMutex.Unlock()
 			return
 		}
 		start := time.Now()
@@ -81,6 +84,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 		if err != nil {
 			l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
 			time.Sleep(cm.RetryDelay)
+			cm.CertMutex.Unlock()
 			continue
 		}
 		token.Mu.Lock()
@@ -91,13 +95,11 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 		if err != nil {
 			l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
 			time.Sleep(cm.RetryDelay)
+			cm.CertMutex.Unlock()
 			continue
 		} else {
 			l.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.String("podUid", result.PodUid), slog.Duration("duration", duration))
 		}
-		cm.CertMutex.Lock()
-		cm.CurrentCert = &result.Certificate
-		cm.CurrentPodUid = result.PodUid
 		cm.CertMutex.Unlock()
 	}
 }

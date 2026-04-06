@@ -125,3 +125,74 @@ kubectl logs -n default job/configure-vault
 3. **Vault dev mode = in-memory** — any restart wipes all config. The configure job must re-run after every Vault restart
 4. **Helm chart ConfigMap lifecycle** — when a Helm condition stops rendering a resource, ArgoCD prune should delete it, but stale ConfigMaps can persist if the StatefulSet references them
 5. **Always delete stale pods after config changes** — StatefulSet updates don't always trigger pod recreation
+
+---
+
+## How to Fix It When It Happens Again (Exact Steps)
+
+If you see `Cannot login using Kubernetes: permission denied` in the control-plane logs, follow these steps:
+
+### 1. Ensure the RBAC binding exists
+```bash
+# Check if the auth-delegator binding is present
+kubectl get clusterrolebinding vault-configurer-auth-delegator
+
+# If missing or outdated, apply it:
+kubectl apply -f infra/k8s/vault/configure/configure-vault-rbac.yaml
+```
+
+### 2. Re-run the configure job to refresh Vault's K8s auth config
+```bash
+# Delete any existing job (ignore if not found)
+kubectl delete job configure-vault -n default --ignore-not-found
+
+# Create and run the job
+kubectl create -f infra/k8s/vault/configure/configure-vault-job.yaml
+
+# Wait for it to complete (typically <1 minute)
+sleep 30
+
+# Verify it succeeded
+kubectl logs -n default job/configure-vault
+# Look for: "Vault configuration complete" at the end
+```
+
+### 3. Test that the fix works
+```bash
+# Get the control-plane pod name
+POD=$(kubectl get pod -n sentinel-control-plane -l app.kubernetes.io/name=control-plane -o jsonpath='{.items[0].metadata.name}')
+
+# Test Vault login from inside the pod
+kubectl exec -n sentinel-control-plane $POD -- sh -c \
+  'TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token) && \
+   wget -qO- --post-data="{\"jwt\": \"'$TOKEN'\", \"role\": \"sentinel-role\"}" \
+   http://vault-internal.default.svc.cluster.local:8200/v1/auth/kubernetes/login'
+```
+
+**Success** looks like:
+```json
+{
+  "request_id": "...",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": null,
+  "wrap_info": null,
+  "warnings": null,
+  "auth": {
+    "client_token": "hvs.CAESIC...",
+    "accessor": "...",
+    ...
+  }
+}
+```
+
+**Failure** (still broken) looks like:
+```
+wget: server returned error: HTTP/1.1 403 Forbidden
+```
+
+### 4. If it still fails, repeat from step 1
+Sometimes Vault restarts between steps — just repeat the process. The job is fast and safe to re-run.
+
+> **Tip**: Since Vault runs in dev mode (in-memory), its configuration is lost on every restart. The configure job must re-run after each Vault pod restart. Consider automating this with a ArgoCD Application that has `selfHeal: true` on the configure job, or switch Vault to production mode with persistent storage if you need HA.
