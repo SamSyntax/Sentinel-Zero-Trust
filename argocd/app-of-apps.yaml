@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-of-apps
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+  spec:
+    project: default
+    source:
+      repoURL: git@github.com:SamSyntax/Sentinel-Zero-Trust.git
+      targetRevision: master
+      path: argocd/applications
+      directory:
+        recurse: false
+    destination:
+      server: https://kubernetes.default.svc
+      namespace: argocd
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+        - CreateNamespace=true
