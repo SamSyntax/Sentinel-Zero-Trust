@@ -30,3 +30,9 @@ server:
   # Let's loosen  the anti-affinity rules so the vault can schedule on the only node.
   injector:
     affinity: ""
+
+  # only for dev
+  server:
+    dev:
+      enabled: true
+      devRootToken: root
