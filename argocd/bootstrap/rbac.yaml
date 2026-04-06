@@ -10,7 +10,10 @@ metdata:
   name: secrets-bootstrap
 rules:
   - apiGroups: [""]
-    resources: ["namespaces", "secrets"]
+    resources: ["namespaces"]
+    verbs: ["get", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
     verbs: ["get", "create", "update", "patch", "apply"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
