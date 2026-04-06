@@ -22,3 +22,11 @@ webhooks:
     namespaceSelector:
       matchLabels:
         sentinel-zt.io/injection: enabled
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - sentinel-control-plane
+            - sentinel-data-plane
+            - kube-system
+            - argocd

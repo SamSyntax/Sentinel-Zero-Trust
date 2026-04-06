@@ -1,5 +1,5 @@
 image:
-  repository: localhost:5000/sentinel-control-plane
+  repository: localhost:30500/sentinel-control-plane
   tag: "latest"
   pullPolicy: IfNotPresent
 
