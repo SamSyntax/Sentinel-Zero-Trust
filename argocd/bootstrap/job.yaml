@@ -22,7 +22,7 @@ spec:
               openssl req -x509 -new -nodes \
                 -key /tmp/certs/root-ca.key \
                 -sha256 -days 3650 \
-                -out /tmp/certs/root-ca.pem
+                -out /tmp/certs/root-ca.pem \
                 -subj "/CN=sentinel-root-ca"
 
               openssl genrsa -out /tmp/certs/issuing-ca.key 4096
