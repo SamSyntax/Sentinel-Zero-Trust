@@ -1,0 +1,93 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: generate-tls-secrets
+  namespace: default
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: secrets-bootstrap
+      containers:
+        - name: generate-secrets
+          image: alpine:3.19
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache openssl
+              mkdir -p /tmp/certs
+              openssl genrsa -out /tmp/certs/root-ca.key 4096
+              openssl req -x509 -new -nodes \
+                -key /tmp/certs/root-ca.key \
+                -sha256 -days 3650 \
+                -out /tmp/certs/root-ca.pem
+                -subj "/CN=sentinel-root-ca"
+
+              openssl genrsa -out /tmp/certs/issuing-ca.key 4096
+              openssl req -new \
+                -key /tmp/certs/issuing-ca.key \
+                -out /tmp/certs/issuing-ca.csr \
+                -subj "/CN=sentinel-issuing-ca"
+
+              cat > /tmp/certs/issuing-ca-ext.cnf << 'EOF'
+              basicConstraints = critical, CA:TRUE, pathlen:0
+              keyUsage = critical, digitalSignature, keyCertSign, cRLSign
+              subjectKeyIdentifier = hash
+              authorityKeyIdentifier = keyid:always, issuer
+              EOF
+
+              openssl x509 -req \
+                -in /tmp/certs/issuing-ca.csr \
+                -CA /tmp/certs/root-ca.pem \
+                -CAkey /tmp/certs/root-ca.key \
+                -CAcreateserial \
+                -out /tmp/certs/issuing-ca.pem \
+                -days 3650 -sha256 \
+                -extfile /tmp/certs/issuing-ca-ext.cnf
+
+              openssl genrsa -out /tmp/certs/webhook.key 2048
+              openssl req - new \
+                -key /tmp/certs/webhook.key \
+                -out /tmp/certs/webhook.csr \
+                -subj "/CN=sentinel-control-plane.sentinel-control-plane.svc"
+
+              cat > /tmp/certs/webhook-ext.cnf << EOF
+              authorityKeyIdentifier = keyid,issuer
+              basicConstraints = CA:FALSE
+              keyUsage = digitalSignature, keyEncipherment
+              extendedKeyUsage = serverAuth
+              subjectAltName = @alt_names
+
+              [alt_names]
+              DNS.1 = sentinel-control-plane.sentinel-control-plane.svc
+              DNS.2 = sentinel-control-plane.sentinel-control-plane.svc.cluster.local
+              DNS.3 = sentinel-control-plane
+              EOF
+
+              openssl x509 -req \
+                -in /tmp/certs/webhook.csr \
+                -CA /tmp/certs/issuing-ca.pem \
+                -CAkey /tmp/certs/issuing-ca.key \
+                -CAcreateserial \
+                -out /tmp/certs/webhook.pem \
+                -days 3650 -sha256 \
+                -extfile /tmp/certs/webhook-ext.cnf
+
+              kubectl create namespace sentinel-control-plane --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create secret tls webhook-server-tls \
+                --cert /tmp/certs/webhook.pem \
+                --key /tmp/certs/webhook.key \
+                -n sentinel-control-plane \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              kubectl create namespace sentinel-data-plane --dry-run=client -o yaml | kubectl apply -f -
+              kubectl create secret generic webhook-server-tls \
+                --cert /tmp/certs/root-ca.pem  \
+                -n sentinel-data-plane \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              echo "TLS sercrets created successfully"
+      restartPolicy: Never
+    backoffLimit: 3
