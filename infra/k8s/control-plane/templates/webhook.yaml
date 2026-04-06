@@ -35,4 +35,5 @@ webhooks:
             - sentinel-data-plane
             - kube-system
             - argocd
+            - default
 {{- end }}
