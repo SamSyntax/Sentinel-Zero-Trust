@@ -1,4 +1,9 @@
 {{- if .Values.webhook.enabled }}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "webhook-server-tls" }}
+{{- $caBundle := "" }}
+{{- if $secret }}
+{{- $caBundle = index $secret.data "tls.crt" }}
+{{- end }}
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -12,7 +17,7 @@ webhooks:
         name: {{ include "sentinel.fullname" . }}
         namespace: {{ .Release.Namespace }}
         path: /mutate
-      caBundle: {{ index (lookup "v1" "Secret" .Release.Namespace "webhook-server-tls").data "tls.crt" | default "" }}
+      caBundle: {{ $caBundle }}
     rules:
       - operations: ["CREATE"]
         apiGroups: [""]
