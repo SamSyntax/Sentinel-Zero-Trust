@@ -21,7 +21,7 @@ spec:
         - name: service.nodePort
           value: "30443"
   destination:
-    server: http://kubernetes.default.svc
+    server: https://kubernetes.default.svc
     namespace: sentinel-data-plane
   syncPolicy:
     automated:

@@ -12,7 +12,7 @@ spec:
     targetRevision: master
     path: dummy-services/users-service/k8s
   destination:
-    server: http://kubernetes.default.svc
+    server: https://kubernetes.default.svc
     namespace: users-service
   syncPolicy:
     automated:
