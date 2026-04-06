@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgresql
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    chart: postgresql
+    repoURL: oci://registry-1.docker.io/bitnamicharts
+    targetRevision: 16.x.x
+    helm:
+      releaseName: postgresql
+      valueFiles:
+        - $values/argocd/values/postgresql-values.yaml
+      parameters:
+        - name: auth.existingSecret
+          value: postgres-credentials
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: database
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  sources:
+    - chart: posstgresql
+      repoURL: oci://registry-1.docker.io/bitnamicharts
+      targetRevision: 16.x.x
+      helm:
+        releaseName: postgresql
+        valueFiles:
+          - $values/argocd/values/postgresql-values.yaml
+        patameters:
+          - name: auth.existingSecret
+            value: postgres-credentials
+    - repoURL: git@github.com:SamSyntax/Sentinel-Zero-Trust.git
+      targetRevision: master
+      ref: values
