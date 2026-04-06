@@ -145,6 +145,7 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, fetcher grpc.CertFetc
 	}
 	tokenContainer := &utils.ServiceAccountTokenContainer{
 		Token: token,
+		Mu:    &sync.RWMutex{},
 	}
 	claims, err := utils.ParseJWT(string(tokenContainer.Token))
 	if err != nil {
