@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: git@github.com:SamSyntax/Sentinel-Zero-Trust.git
     targetRevision: master
-    path: argocd/resources/vault-root-tokne
+    path: argocd/resources/vault-root-token
   destination:
     server: https://kubernetes.default.svc
     namespace: default
