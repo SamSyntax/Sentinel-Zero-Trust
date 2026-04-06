@@ -25,3 +25,8 @@ server:
     enabled: true
     size: 10Gi
     storageClass: "standard"
+
+  # the vault helm chart deploy vault-agent-injector with pod anti-affinity rules that require multiple node.
+  # Let's loosen  the anti-affinity rules so the vault can schedule on the only node.
+  injector:
+    affinity: ""
