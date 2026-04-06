@@ -1,7 +1,7 @@
 DATA_PLANE_BINARY_NAME=plane
 DATA_PLANE_BUILD_DIR=data-plane
 INIT_CONTAINER_BUILD_DIR=sentinel-init
-REGISTRY?=localhost:30500
+REGISTRY?=localhost:5000
 CLUSTER_NAME?=sentinel-zt
 
 .PHONY: all build clean run
