@@ -1,0 +1,79 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: configure-vault
+  namespace: default
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: vault-configurer
+      containers:
+        - name: configure-vault
+          image: hashicorp/vault:1.17.2
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              export VAULT_ADDR="http://vault-internal.default.svc.cluster.local:8200"
+              export VAULT_TOKEN=$(cat /vault-token/token)
+
+              for i in $(seq 1 30); do
+                if vault status -format=json 2>/dev/null | jq -e '.sealed == false' >/dev/null 2>&1; then
+                  echo "Vault is unsealed"
+                  break
+                fi
+                echo "Waiting for Vault to be unsealed... ($i/30)"
+                sleep 5
+              done
+
+              vault secrets enable pki 2>/dev/null || true
+              vault secrets tune -max-lease-ttl=87600h pki
+
+              vault write -field=certificate pki/root/generate/internal \
+                common_name="Sentinel Root CA" ttl=87600h > /tmp/root_ca.crt
+
+              vault write pki/roles/sentinel-service \
+                allowed_domains="svc,cluster.local" \
+                allow_subdomains=true \
+                allow_any_name=true \
+                max_ttl="72h" \
+                generate_lease=true
+
+              vault auth enable kubernetes 2>/dev/null || true
+
+              K8S_CA_CERT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt)
+              K8S_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
+              vault write auth/kubernetes/config \
+                kubernetes_host="https://kubernetes.default.svc" \
+                kubernetes_ca_cert="$K8S_CA_CERT" \
+                token_reviewer_jwt="$K8S_TOKEN"
+
+              vault policy write sentinel-app-policy - <<'POLICY'
+              path "pki/issue/sentinel-service" {
+                capabilities = ["create", "update"]
+              }
+              POLICY
+
+              vault write auth/kubernetes/role/sentinel-role \
+                bound_service_account_names=sentinel-control-plane \
+                bound_service_account_namespaces=sentinel-control-plane \
+                policies=sentinel-app-policy \
+                ttl=3600
+
+              echo "Vault configuration complete"
+          volumeMounts:
+            - name: vault-token
+              mountPath: /vault-token
+              readOnly: true
+      volumes:
+        - name: vault-token
+          secret:
+            secretName: vault-root-token
+      restartPolicy: Never
