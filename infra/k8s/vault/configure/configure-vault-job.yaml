@@ -24,7 +24,7 @@ spec:
               export VAULT_TOKEN=$(cat /vault-token/token)
 
               for i in $(seq 1 30); do
-                if vault status -format=json 2>/dev/null | jq -e '.sealed == false' >/dev/null 2>&1; then
+                if vault status >/dev/null 2>&1; then
                   echo "Vault is unsealed"
                   break
                 fi
