@@ -6,15 +6,12 @@ metadata:
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
-metdata:
+metadata:
   name: secrets-bootstrap
 rules:
   - apiGroups: [""]
-    resources: ["namespaces"]
-    verbs: ["get", "create", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "create", "update", "patch", "apply"]
+    resources: ["secrets", "namespaces"]
+    verbs: ["get", "list", "create", "update", "patch", "apply"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -24,7 +21,7 @@ subjects:
   - kind: ServiceAccount
     name: secrets-bootstrap
     namespace: default
-rolRef:
+roleRef:
   kind: ClusterRole
   name: secrets-bootstrap
   apiGroup: rbac.authorization.k8s.io
