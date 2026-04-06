@@ -29,3 +29,6 @@ spiffe:
 service:
   type: ClusterIP
   port: 8081
+
+webhook:
+  enabled: true

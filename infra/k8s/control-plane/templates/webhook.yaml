@@ -1,0 +1,33 @@
+{{- if .Values.webhook.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: sentinel-sidecar-injector
+  labels:
+    {{- include "sentinel.labels" . | nindent 4 }}
+webhooks:
+  - name: injector.sentinel-zt.io
+    clientConfig:
+      service:
+        name: {{ include "sentinel.fullname" . }}
+        namespace: {{ .Release.Namespace }}
+        path: /mutate
+      caBundle: {{ index (lookup "v1" "Secret" .Release.Namespace "webhook-server-tls").data "tls.crt" | default "" }}
+    rules:
+      - operations: ["CREATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    timeoutSeconds: 5
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - sentinel-control-plane
+            - sentinel-data-plane
+            - kube-system
+            - argocd
+{{- end }}
