@@ -18,6 +18,9 @@ spec:
     - repoURL: git@github.com:SamSyntax/Sentinel-Zero-Trust.git
       targetRevision: master
       ref: values
+    - repoURL: git@github.com:SamSyntax/Sentinel-Zero-Trust.git
+      targetRevision: master
+      path: infra/k8s/vault/configure
   destination:
     server: https://kubernetes.default.svc
     namespace: default
