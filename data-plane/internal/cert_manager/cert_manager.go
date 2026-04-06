@@ -28,6 +28,7 @@ func (cm *CertManager) GetCurrentCertificate() *tls.Certificate {
 
 func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetcher, tokenProvider utils.TokenProvider, token *utils.ServiceAccountTokenContainer, namespace string, serviceName string, target string, l *slog.Logger) {
 	for {
+		l.DebugContext(ctx, "passed token", slog.String("token", string(token.Token)))
 		if token == nil {
 			l.ErrorContext(ctx, "can't start rotation", slog.String("error", "no service account token"), slog.String("service", serviceName))
 			time.Sleep(cm.RetryDelay)
