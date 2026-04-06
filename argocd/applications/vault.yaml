@@ -16,7 +16,7 @@ spec:
       vaultFiles:
         - values.yaml
   destination:
-    server: https://kuberntes.default.svc
+    server: https://kubernetes.default.svc
     namespace: default
   syncPolicy:
     automated:
