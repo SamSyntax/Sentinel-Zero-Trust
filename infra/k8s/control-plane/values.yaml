@@ -1,7 +1,7 @@
 image:
-  repository: sentinel-control-plane
+  repository: localhost:5000/sentinel-control-plane
   tag: "latest"
-  pullPolicy: Never
+  pullPolicy: IfNotPresent
 
 rbac:
   create: true

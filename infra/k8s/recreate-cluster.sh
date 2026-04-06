@@ -3,13 +3,22 @@
 set -e
 
 CLUSTER_NAME="sentinel-zt"
+REGISTRY="${REGISTRY:-localhost:5000}"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${DIR}/../.." && pwd)"
 
 echo "Deleting Kind Cluster: ${CLUSTER_NAME}"
 kind delete cluster --name "${CLUSTER_NAME}" || true
 
-bash "${DIR}/kind/setup-cluster.sh"
+echo "Starting local registry..."
+bash "${DIR}/registry/create-registry.sh"
+
+echo "Creating Kind Cluster: ${CLUSTER_NAME}"
+kind create cluster --name "${CLUSTER_NAME}" --config "${DIR}/kind/kind-config.yaml"
+
+echo "Connecting registry to Kind network..."
+docker network connect "kind" "kind-registry" || true
+
 kubectl create namespace sentinel-data-plane --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace sentinel-control-plane --dry-run=client -o yaml | kubectl apply -f -
 
@@ -30,17 +39,19 @@ envsubst < "${DIR}/control-plane/webhook-registration.yaml" | kubectl apply -f -
 
 kubectl label namespace default sentinel-zt.io/injection=enabled --overwrite
 
-echo "Building sentinel-init image..."
+echo "Building and pushing sentinel-init image..."
 cd "${DIR}/sentinel-init"
 docker build -t kind.local/sentinel-init:latest .
+docker tag kind.local/sentinel-init:latest "${REGISTRY}/sentinel-init:latest"
+docker push "${REGISTRY}/sentinel-init:latest"
 cd "${PROJECT_ROOT}"
-kind load docker-image kind.local/sentinel-init:latest --name "${CLUSTER_NAME}"
 
-echo "Building users-service image..."
+echo "Building and pushing users-service image..."
 cd "${PROJECT_ROOT}/dummy-services/users-service"
 docker build -t users-service:latest .
+docker tag users-service:latest "${REGISTRY}/users-service:latest"
+docker push "${REGISTRY}/users-service:latest"
 cd "${PROJECT_ROOT}"
-kind load docker-image users-service:latest --name "${CLUSTER_NAME}"
 
 echo "Deploying PostgreSQL..."
 bash "${PROJECT_ROOT}/dummy-services/psql-k8s/psql-helm.sh" default

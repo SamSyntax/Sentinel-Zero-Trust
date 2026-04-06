@@ -1,7 +1,7 @@
 image:
-  repository: sentinel-data-plane
+  repository: localhost:5000/sentinel-data-plane
   tag: "latest"
-  pullPolicy: Never
+  pullPolicy: IfNotPresent
 
 serviceAccount:
   create: true
@@ -12,9 +12,9 @@ containerPort: 15006
 initContainer:
   name: sentinel-init
   image:
-    repository: kind.local/sentinel-init
+    repository: localhost:5000/sentinel-init
     tag: "latest"
-    pullPolicy: Never
+    pullPolicy: IfNotPresent
   inboundPort: 15006
   outboundPort: 15001
 
