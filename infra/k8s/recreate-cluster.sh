@@ -3,21 +3,20 @@
 set -e
 
 CLUSTER_NAME="sentinel-zt"
-REGISTRY="${REGISTRY:-localhost:5000}"
+REGISTRY="localhost:5000"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${DIR}/../.." && pwd)"
 
 echo "Deleting Kind Cluster: ${CLUSTER_NAME}"
 kind delete cluster --name "${CLUSTER_NAME}" || true
 
-echo "Starting local registry..."
-bash "${DIR}/registry/create-registry.sh"
 
 echo "Creating Kind Cluster: ${CLUSTER_NAME}"
 kind create cluster --name "${CLUSTER_NAME}" --config "${DIR}/kind/kind-config.yaml"
 
-echo "Connecting registry to Kind network..."
-docker network connect "kind" "kind-registry" || true
+echo "Deploying in-cluster registry"
+kubectl apply -f "${DIR}/registry/registry-deployment.yaml"
+kubectl wait --for=condition=available -n kube-system deployment/registry --timeout=60s
 
 kubectl create namespace sentinel-data-plane --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace sentinel-control-plane --dry-run=client -o yaml | kubectl apply -f -
@@ -29,6 +28,9 @@ echo "Bootstrapping Vault PKI and Webhook TLS..."
 bash "${DIR}/cluster-pki-init.sh"
 bash "${DIR}/init-webhook-tls.sh"
 
+echo "Building and pushing sentinel-control-plane image"
+docker build -t "${REGISTRY}/sentinel-control-plane:latest" "${PROJECT_ROOT}/control-plane/"
+docker push "${REGISTRY}/sentinel-control-plane:latest"
 helm upgrade --install control-plane "${DIR}/control-plane" \
   -n sentinel-control-plane --create-namespace \
   --wait
@@ -59,6 +61,9 @@ bash "${PROJECT_ROOT}/dummy-services/psql-k8s/psql-helm.sh" default
 echo "Deploying Users Service..."
 kubectl apply -f "${PROJECT_ROOT}/dummy-services/users-service/k8s/"
 
+echo "Building and pushing sentinel-data-plane image"
+docker build -t "${REGISTRY}/sentinel-data-plane:latest" "${PROJECT_ROOT}/data-plane/"
+docker push "${REGISTRY}/sentinel-data-plane:latest"
 helm upgrade --install data-plane "${DIR}/data-plane" \
   -n sentinel-data-plane --create-namespace \
   --set service.type=NodePort --set service.nodePort=30443

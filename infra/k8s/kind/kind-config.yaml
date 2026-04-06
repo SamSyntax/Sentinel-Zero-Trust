@@ -2,8 +2,8 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 containerdConfigPatches:
   - |-
-    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5000"]
-      endpoint = ["http://kind-registry:5000"]
+    [plugins."io.containerd.cri.v1.cri".registry.configs."localhost:30500".tls]
+      insecure_skip_verify = true
 nodes:
   - role: control-plane
     extraPortMappings:
@@ -15,4 +15,7 @@ nodes:
         protocol: TCP
       - containerPort: 30443
         hostPort: 8443
+        protocol: TCP
+      - containerPort: 30500
+        hostPort: 5000
         protocol: TCP

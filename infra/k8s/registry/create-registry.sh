@@ -13,7 +13,7 @@ if docker inspect "${REGISTRY_NAME}" >/dev/null 2>&1; then
 else
   docker run -d \
     --restart=always \
-    -p "127.0.0.1:${REGISTRY_PORT}:5000" \
+    -p "0.0.0.0:${REGISTRY_PORT}:5000" \
     --name "${REGISTRY_NAME}" \
     registry:2
 fi
