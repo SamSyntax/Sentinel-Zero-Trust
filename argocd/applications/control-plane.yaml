@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: control-plane
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:SamSyntax/Sentinel-Zero-Trust.git
+    targetRevision: master
+    path: infra/k8s/control-plane
+    helm:
+      releaseName: control-plane
+      parameters:
+        - name: rbac.create
+          value: "true"
+        - name: labels.app
+          value: control-plane
+        - name: vault.uri
+          value: "http://vault-internal.default.svc.cluster.local:8200"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sentinel-control-plane
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
