@@ -16,7 +16,7 @@ spec:
             - -c
             - |
               set -e
-              apk add --no-cache openssl
+              apk add --no-cache openssl kubectl
               mkdir -p /tmp/certs
               openssl genrsa -out /tmp/certs/root-ca.key 4096
               openssl req -x509 -new -nodes \
