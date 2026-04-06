@@ -1,5 +1,5 @@
 {{- if .Values.webhook.enabled }}
-{{- $secret := lookup "v1" "Secret" .Release.Namespace "webhook-server-tls" }}
+{{- $secret := lookup "v1" "Secret" .Release.Namespace "webhook-ca" }}
 {{- $caBundle := "" }}
 {{- if $secret }}
 {{- $caBundle = index $secret.data "tls.crt" }}
@@ -12,6 +12,7 @@ metadata:
     {{- include "sentinel.labels" . | nindent 4 }}
 webhooks:
   - name: injector.sentinel-zt.io
+    failurePolicy: Ignore
     clientConfig:
       service:
         name: {{ include "sentinel.fullname" . }}
