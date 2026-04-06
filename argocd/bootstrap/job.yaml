@@ -48,7 +48,7 @@ spec:
                 -extfile /tmp/certs/issuing-ca-ext.cnf
 
               openssl genrsa -out /tmp/certs/webhook.key 2048
-              openssl req - new \
+              openssl req -new \
                 -key /tmp/certs/webhook.key \
                 -out /tmp/certs/webhook.csr \
                 -subj "/CN=sentinel-control-plane.sentinel-control-plane.svc"
@@ -83,7 +83,7 @@ spec:
                 --dry-run=client -o yaml | kubectl apply -f -
 
               kubectl create namespace sentinel-data-plane --dry-run=client -o yaml | kubectl apply -f -
-              kubectl create secret generic webhook-server-tls \
+              kubectl create secret generic sentinel-root-ca \
                 --cert /tmp/certs/root-ca.pem  \
                 -n sentinel-data-plane \
                 --dry-run=client -o yaml | kubectl apply -f -
