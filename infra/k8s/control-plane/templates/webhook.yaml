@@ -17,6 +17,7 @@ webhooks:
         name: {{ include "sentinel.fullname" . }}
         namespace: {{ .Release.Namespace }}
         path: /mutate
+        port: {{ .Values.containers.port }}
       caBundle: {{ $caBundle }}
     rules:
       - operations: ["CREATE"]
