@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: data-plane
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:SamSyntax/Sentinel-Zero-Trust.git
+    targetRevision: master
+    path: infra/k8s/data-plane
+    helm:
+      releaseName: data-plane
+      parameters:
+        - name: serviceAccount.create
+          value: "true"
+        - name: service.type
+          value: NodePort
+        - name: service.nodePort
+          value: "30443"
+  destination:
+    server: http://kubernetes.default.svc
+    namespace: sentinel-data-plane
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
