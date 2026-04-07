@@ -21,4 +21,4 @@ server:
     storageClass: "standard"
 
   injector:
-    affinity: ""
+    affinity: {}
