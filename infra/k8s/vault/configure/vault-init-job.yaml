@@ -21,7 +21,7 @@ spec:
             - |
               set -e
               export VAULT_ADDR="http://vault-internal.default.svc.cluster.local:8200"
-              RUN apk add --no-cache curl jq
+              apk add --no-cache curl jq
 
               if vault status -format=json 2>/dev/null | grep -q '"initialized": true'; then
                 echo "Vault is already initialized, skipping"
