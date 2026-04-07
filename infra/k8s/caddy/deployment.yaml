@@ -14,28 +14,28 @@ spec:
         app: caddy
     spec:
       containers:
-      - name: caddy
-        image: caddy:2.7-alpine
-        ports:
-          - containerPort: 80
-            name: http
-          - containerPort: 8080
-            name: api
-        volumeMounts:
-          - name: caddy-config
-            mountPath: /etc/caddy/
-            readOnly: true
-        resources:
-          requests:
-            cpu: "50m"
-            memory: "64Mi"
-          limits:
-            cpu: "200m"
-            memory: "128Mi"
-    volumes:
-      - name: caddy-config
-        configMap:
-          name: caddy-config
-          items:
-            - key: Caddyfile
-              path: Caddyfile
+        - name: caddy
+          image: caddy:2.7-alpine
+          ports:
+            - containerPort: 80
+              name: http
+            - containerPort: 8080
+              name: api
+          volumeMounts:
+            - name: caddy-config
+              mountPath: /etc/caddy/
+              readOnly: true
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+      volumes:
+        - name: caddy-config
+          configMap:
+            name: caddy-config
+            items:
+              - key: Caddyfile
+                path: Caddyfile
