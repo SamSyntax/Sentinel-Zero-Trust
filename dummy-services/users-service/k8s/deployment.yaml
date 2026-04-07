@@ -32,7 +32,7 @@ spec:
       containers:
       - name: api
         image: users-service:latest
-        imagePullPolicy: Never
+        imagePullPolicy: Always
         ports:
         - containerPort: 3005
         resources:
