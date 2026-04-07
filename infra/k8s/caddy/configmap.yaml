@@ -6,9 +6,7 @@ metadata:
 data:
   Caddyfile: |
     :80 {
-        reverse_proxy argocd-server.argocd.svc.cluster.local:80 {
-            http_version 1.1
-        }
+      reverse_proxy argocd-server.argocd.svc.cluster.local:80
     }
     :8080 {
       reverse_proxy users-service.users-service.svc.cluster.local:80
