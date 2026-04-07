@@ -27,6 +27,9 @@ type mockCertFetcher struct {
 	errors    []error
 }
 
+const serviceName = "test-svc"
+const spiffeId = "spiffe://cluster.local/ns/default/sa/" + serviceName
+
 func (m *mockCertFetcher) Fetch(ctx context.Context, token utils.ServiceAccountToken, serviceName string) (grpc.IdentityResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -141,7 +144,7 @@ func TestStartRotation_InitialFetchSuccess(t *testing.T) {
 	cm := &certmanager.CertManager{
 		RetryDelay: 10 * time.Millisecond,
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
 	time.Sleep(200 * time.Millisecond)
 	if cm.GetCurrentCertificate() == nil {
 		t.Error("expected certificate to be set after initial fetch")
@@ -175,7 +178,7 @@ func TestStartRotation_InitialFetchRetriesOnError(t *testing.T) {
 	cm := &certmanager.CertManager{
 		RetryDelay: 10 * time.Millisecond,
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
 	time.Sleep(61 * time.Millisecond)
 
 	if cm.GetCurrentCertificate() == nil {
@@ -208,7 +211,7 @@ func TestStartRotation_RotateCertWhenNearExpiry(t *testing.T) {
 		RenewalWindow: 200 * time.Millisecond,
 		RenewNow:      make(chan struct{}, 1),
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
 	time.Sleep(50 * time.Millisecond)
 	cm.RenewNow <- struct{}{}
 	time.Sleep(50 * time.Millisecond)
@@ -234,7 +237,7 @@ func TestStartRotation_StopsOnContextCancel(t *testing.T) {
 	cm := &certmanager.CertManager{
 		RetryDelay: 10 * time.Millisecond,
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", "test-svc", "localhost:9090", noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
 	time.Sleep(200 * time.Millisecond)
 	cancel()
 	time.Sleep(200 * time.Millisecond)
@@ -242,5 +245,181 @@ func TestStartRotation_StopsOnContextCancel(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 	if fetcher.CallCount() != initialCalls {
 		t.Errorf("exepcted no more fetch calls after cancel, got %d -> %d", initialCalls, fetcher.CallCount())
+	}
+}
+
+func TestStartRotation_NoPanicWhenCertAlreadySet(t *testing.T) {
+	// This is the exact scenario that triggered the original deadlock/panic:
+	// CurrentCert is already set when StartRotation enters the loop,
+	// so the needsFetch branch is not taken and the code proceeds
+	// to parse the existing certificate.
+
+	cert := makeCert(t, time.Now().Add(time.Hour))
+	fetcher := &mockCertFetcher{
+		results: []grpc.IdentityResult{
+			{Certificate: cert, PodUid: "pod-rotated"},
+		},
+	}
+	provider := &mockTokenProvider{}
+	token := &utils.ServiceAccountTokenContainer{
+		Token: "token",
+		Mu:    &sync.RWMutex{},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cm := &certmanager.CertManager{
+		CurrentCert:   &cert,
+		CurrentPodUid: "pod-initial",
+		RetryDelay:    10 * time.Millisecond,
+		RenewalWindow: 5 * time.Minute,
+		RenewNow:      make(chan struct{}, 1),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+	}()
+
+	// Give the goroutine time to enter the loop and reach the
+	// certificate parsing path (the one that previously deadlocked).
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("StartRotation did not exit after cancel; likely deadlocked")
+	}
+}
+
+func TestStartRotation_ConcurrentGetDuringRotation(t *testing.T) {
+	// Hammers GetCurrentCertificate while StartRotation is actively
+	// running to surface any lock-ordering issues.
+	cert := makeCert(t, time.Now().Add(500*time.Millisecond))
+	cert2 := makeCert(t, time.Now().Add(time.Hour))
+
+	fetcher := &mockCertFetcher{
+		results: []grpc.IdentityResult{
+			{Certificate: cert2, PodUid: "pod-2"},
+			{Certificate: cert2, PodUid: "pod-3"},
+			{Certificate: cert2, PodUid: "pod-4"},
+		},
+	}
+	provider := &mockTokenProvider{}
+	token := &utils.ServiceAccountTokenContainer{
+		Token: "token",
+		Mu:    &sync.RWMutex{},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cm := &certmanager.CertManager{
+		CurrentCert:   &cert,
+		CurrentPodUid: "pod-1",
+		RetryDelay:    10 * time.Millisecond,
+		RenewalWindow: 400 * time.Millisecond,
+		RenewNow:      make(chan struct{}, 1),
+	}
+
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+
+	var wg sync.WaitGroup
+	for range 200 {
+		wg.Go(func() {
+			for range 50 {
+				c := cm.GetCurrentCertificate()
+				if c == nil {
+					t.Error("GetCurrentCertificate returned nil during rotation")
+					return
+				}
+				time.Sleep(time.Millisecond)
+			}
+		})
+	}
+	wg.Wait()
+	cancel()
+}
+
+func TestStartRotation_RenewNowWithExistingCert(t *testing.T) {
+	// Cert is pre-set and long-lived; Force an immediate renewal
+	// via RenewNow. This exercises the scheduling + renewal path that
+	// previously held a write lock while trying to acquire a read lock.
+	cert1 := makeCert(t, time.Now().Add(time.Hour))
+	cert2 := makeCert(t, time.Now().Add(2*time.Hour))
+
+	fetcher := &mockCertFetcher{
+		results: []grpc.IdentityResult{
+			{Certificate: cert2, PodUid: "pod-renewed"},
+		},
+	}
+	provider := &mockTokenProvider{}
+	token := &utils.ServiceAccountTokenContainer{
+		Token: "token",
+		Mu:    &sync.RWMutex{},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cm := &certmanager.CertManager{
+		CurrentCert:   &cert1,
+		CurrentPodUid: "pod-original",
+		RetryDelay:    10 * time.Millisecond,
+		RenewalWindow: 5 * time.Minute,
+		RenewNow:      make(chan struct{}, 1),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+	}()
+
+	// Wait for the goroutine to reach the select/sleep, then poke it.
+	time.Sleep(100 * time.Millisecond)
+	cm.RenewNow <- struct{}{}
+	time.Sleep(100 * time.Millisecond)
+
+	if cm.CurrentPodUid != "pod-renewed" {
+		t.Errorf("expected pod uid %q, got %q", "pod-renewed", cm.CurrentPodUid)
+	}
+	if fetcher.CallCount() != 1 {
+		t.Errorf("expected 1 fetch call, got %d", fetcher.CallCount())
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("StartRotation did not exit after cancel; likely deadlocked")
+	}
+}
+
+func TestStartRotation_NilTokenContainerRetries(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	fetcher := &mockCertFetcher{}
+	provider := &mockTokenProvider{}
+
+	cm := &certmanager.CertManager{
+		RetryDelay: 10 * time.Millisecond,
+		RenewNow:   make(chan struct{}, 1),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		cm.StartRotation(ctx, fetcher, provider, nil, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+	}()
+
+	// Let it spin on the nil-token retry path a few times.
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("StartRotation did not exit after cancel with nil token; likely deadlocked")
+	}
+
+	if fetcher.CallCount() != 0 {
+		t.Errorf("expected 0 fetch calls with nil token, got %d", fetcher.CallCount())
 	}
 }
