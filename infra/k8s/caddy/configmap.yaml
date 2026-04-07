@@ -7,7 +7,6 @@ data:
   Caddyfile: |
     http://0.0.0.0:80 {
         reverse_proxy argocd-server.argocd.svc.cluster.local:80
-        auto_https disable_redirects
     }
     :8080 {
         reverse_proxy users-service.users-service.svc.cluster.local:80
