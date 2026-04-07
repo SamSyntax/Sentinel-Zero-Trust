@@ -47,6 +47,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 		cm.CertMutex.RUnlock()
 
 		if needsFetch {
+			start := time.Now()
 			result, err := fetcher.Fetch(ctx, token.Token, spiffeId)
 			if err != nil {
 				l.WarnContext(ctx, "initial certificate fetch failed, retrying", slog.String("error", err.Error()), slog.String("service", serviceName))
@@ -61,7 +62,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 			cm.CurrentCert = &result.Certificate
 			cm.CurrentPodUid = result.PodUid
 			cm.CertMutex.Unlock()
-			l.InfoContext(ctx, "initial certificate fetched", slog.String("service", serviceName), slog.String("podUid", result.PodUid))
+			l.InfoContext(ctx, "initial certificate fetched", slog.String("service", serviceName), slog.String("podUid", result.PodUid), slog.Duration("duration", time.Since(start)))
 			continue
 		}
 
@@ -113,6 +114,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 		token.Token = newToken
 		token.Mu.Unlock()
 
+		start := time.Now()
 		result, err := fetcher.Fetch(ctx, token.Token, spiffeId)
 		if err != nil {
 			l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName))
@@ -128,6 +130,6 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 		cm.CurrentCert = &result.Certificate
 		cm.CurrentPodUid = result.PodUid
 		cm.CertMutex.Unlock()
-		l.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.String("podUid", result.PodUid))
+		l.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.String("podUid", result.PodUid), slog.Duration("duration", time.Since(start)))
 	}
 }
