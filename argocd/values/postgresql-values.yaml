@@ -8,7 +8,7 @@ primary:
     limits:
       cpu: 500m
       memory: 512Mi
-  persistance:
+  persistence:
     enabled: true
     size: 8Gi
 
