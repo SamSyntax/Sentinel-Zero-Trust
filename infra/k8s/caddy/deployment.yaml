@@ -28,7 +28,7 @@ spec:
         resources:
           requests:
             cpu: "50m"
-            mamory: "64Mi"
+            memory: "64Mi"
           limits:
             cpu: "200m"
             memory: "128Mi"
