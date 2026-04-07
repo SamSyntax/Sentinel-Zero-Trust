@@ -159,8 +159,14 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, fetcher grpc.CertFetc
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch initial certificate: %w", err)
 	}
-	cm := &certmanager.CertManager{CurrentCert: &result.Certificate, CurrentPodUid: result.PodUid, RetryDelay: 1 * time.Minute, RenewalWindow: 5 * time.Minute, RenewNow: make(chan struct{}, 1)}
-	go cm.StartRotation(ctx, fetcher, tokenProvider, tokenContainer, cfg.KubernetesNamespace, cfg.ServiceName, cfg.TargetGRPC, logger)
+	cm := &certmanager.CertManager{
+		CurrentCert:   &result.Certificate,
+		CurrentPodUid: result.PodUid,
+		RetryDelay:    1 * time.Minute,
+		RenewalWindow: 5 * time.Minute,
+		RenewNow:      make(chan struct{}),
+	}
+	go cm.StartRotation(ctx, fetcher, tokenProvider, tokenContainer, cfg.KubernetesNamespace, cfg.ServiceName, spiffeId, cfg.TargetGRPC, logger)
 	proxy := &Proxy{
 		cfg:         cfg,
 		logger:      logger,
