@@ -1,7 +1,19 @@
 server:
   dev:
-    enabled: true
+    enabled: false
     devRootToken: root
+
+  standalone:
+    enabled: true
+    config: |
+      ui = true
+      listener "tcp" {
+        address = "[::]:8200"
+        tls_disable = 1
+      }
+      storage "raft" {
+        path = "/vault/data"
+      }
 
   dataStorage:
     enabled: true

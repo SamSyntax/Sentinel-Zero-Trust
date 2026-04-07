@@ -22,7 +22,7 @@ spec:
             - |
               set -e
               export VAULT_ADDR="http://vault-internal.default.svc.cluster.local:8200"
-              export VAULT_TOKEN=$(cat /vault-token/token)
+              export VAULT_TOKEN=$(kubectl get secret vault-unseal-keys -n default -o jsonpath='{.data.root-token}' | base64 -d)
 
               # Wait for Vault to be unsealed and ready
               for i in $(seq 1 60); do
@@ -92,12 +92,4 @@ spec:
                 ttl=3600
 
               echo "Vault configuration complete"
-          volumeMounts:
-            - name: vault-token
-              mountPath: /vault-token
-              readOnly: true
-      volumes:
-        - name: vault-token
-          secret:
-            secretName: vault-root-token
       restartPolicy: Never

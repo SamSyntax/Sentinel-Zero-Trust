@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-unseal
+  namespace: default
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: vault-configurer
+      containers:
+        - name: vault-unseal
+          image: hashicorp/vault:1.17.2
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              export VAULT_ADDR="http://vault-internal.default.svc.cluster.local:8200"
+
+              # Wait for Vault to be unsealed and ready
+              for i in $(seq 1 30); do
+                if vault status -format=json 2>/dev/null | grep -q '"initialized": true'; then
+                  echo "Vault is initialized"
+                  break
+                fi
+                echo "Waiting for Vault to be initialized... ($i/60)"
+                sleep 5
+              done
+
+              if vault status -format=json 2>/dev/null | grep -q '"sealed": false'; then
+                echo "Vault is unsealed, skipping"
+                exit 0
+              fi
+
+              echo "Unsealing Vault..."
+              UNSEAL_1=$(kubectl get secret vault-unseal-keys -n default -o jsonpath='{.data.unseal-key-1}' | base64 -d)
+              UNSEAL_2=$(kubectl get secret vault-unseal-keys -n default -o jsonpath='{.data.unseal-key-2}' | base64 -d)
+
+              vault operator unseal "$UNSEAL_1"
+              vault operator unseal "$UNSEAL_2"
+
+              echo "Vault unsealed successfully"
+      restartPolicy: Never

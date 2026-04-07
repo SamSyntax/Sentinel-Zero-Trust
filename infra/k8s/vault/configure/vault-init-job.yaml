@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-init
+  namespace: default
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: vault-configurer
+      containers:
+        - name: vault-init
+          image: hashicorp/vault:1.17.2
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              export VAULT_ADDR="http://vault-internal.default.svc.cluster.local:8200"
+
+              if vault status -format=json 2>/dev/null | grep -q '"initialized": true'; then
+                echo "Vault is already initialized, skipping"
+                exit 0
+              fi
+
+              vault operator init -key-shares=3 -key-threshold=2 -format=json > /tmp/init-output.json
+
+              ROOT_TOKEN=$(cat /tmp/init-output.json | grep -o '"root_token":"[^"]*"' | cut -d'"' -f4)
+              UNSEAL_1=$(cat /tmp/init-output.json | grep -o '"unseal_keys_b64":\[[^]]*\]' | cut -d'[' -f2 | cut -d']' -f1 | cut -d',' -f1 | tr -d '"')
+              UNSEAL_2=$(cat /tmp/init-output.json | grep -o '"unseal_keys_b64":\[[^]]*\]' | cut -d'[' -f2 | cut -d']' -f1 | cut -d',' -f2 | tr -d '"')
+              UNSEAL_3=$(cat /tmp/init-output.json | grep -o '"unseal_keys_b64":\[[^]]*\]' | cut -d'[' -f2 | cut -d']' -f1 | cut -d',' -f3 | tr -d '"')
+
+              kubectl create secret generic vault-unseal-keys \
+                --from-literal=root-token="$ROOT_TOKEN" \
+                --from-literal=unseal-key-1="$UNSEAL_1" \
+                --from-literal=unseal-key-2="$UNSEAL_2" \
+                --from-literal=unseal-key-3="$UNSEAL_3" \
+                -n default --dry-run=client -o yaml | kubectl apply -f -
+
+              echo "Vault initialized and keys stored in secret vault-unseal-keys"
+      restartPolicy: Never
