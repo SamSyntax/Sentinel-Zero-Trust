@@ -5,8 +5,8 @@ metadata:
   namespace: default
 data:
   Caddyfile: |
-    http://0.0.0.0:80 {
-        reverse_proxy argocd-server.argocd.svc.cluster.local:80
+    :80 {
+      reverse_proxy http://argocd-server.argocd.svc.cluster.local:80
     }
     :8080 {
         reverse_proxy users-service.users-service.svc.cluster.local:80
