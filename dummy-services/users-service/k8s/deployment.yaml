@@ -31,7 +31,8 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       containers:
       - name: api
-        image: users-service:latest
+        image: localhost:30500/sentinel-control-plane
+        tag: "lastest"
         imagePullPolicy: Always
         ports:
         - containerPort: 3005
