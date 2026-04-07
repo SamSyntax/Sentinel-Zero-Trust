@@ -6,12 +6,12 @@ metadata:
 data:
   Caddyfile: |
     :80 {
-        bind :80
-        reverse_proxy argocd-server.argocd.svc.cluster.local:80
+        bind :443
+        reverse_proxy argocd-server.argocd.svc.cluster.local:443
     }
     :8080 {
         bind :8080
         handle_path /api/* {
-            reverse_proxy users-service.users-service.svc.cluster.local:3005
+            reverse_proxy users-service.users-service.svc.cluster.local:80
       }
     }
