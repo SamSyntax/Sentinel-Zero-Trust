@@ -6,10 +6,8 @@ metadata:
 data:
   Caddyfile: |
     :80 {
-        bind 0.0.0.0:80
         reverse_proxy argocd-server.argocd.svc.cluster.local:80
     }
     :8080 {
-        bind 0.0.0.0:8080
         reverse_proxy users-service.users-service.svc.cluster.local:80
     }
