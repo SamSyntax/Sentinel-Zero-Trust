@@ -1,7 +1,7 @@
 image:
   repository: localhost:30500/sentinel-data-plane
   tag: "latest"
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 serviceAccount:
   create: true
