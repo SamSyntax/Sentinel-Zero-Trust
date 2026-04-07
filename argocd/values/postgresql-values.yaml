@@ -22,7 +22,7 @@ readReplicas:
       cpu: 500m
       memory: 512Mi
 
-pgBouncer:
+pgbouncer:
   enabled: true
 
 auth:
