@@ -24,13 +24,6 @@ readReplicas:
 
 pgbouncer:
   enabled: true
-  pgbouncerConfiguration: |
-    [database]
-    postgres = host=postgresql-primary user=postgres password=${POSTGRES_PASSWORD} port=5432 dbname=postgres
-    [pgbouncer]
-    pool_mode = transaction
-    max_client_conn = 100
-    default_pool_size = 20
 
 auth:
   existingSecret: postgres-credentials
