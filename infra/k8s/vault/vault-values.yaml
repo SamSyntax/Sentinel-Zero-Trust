@@ -20,5 +20,5 @@ server:
     size: 10Gi
     storageClass: "standard"
 
-  injector:
-    enabled: false
+injector:
+  enabled: false
