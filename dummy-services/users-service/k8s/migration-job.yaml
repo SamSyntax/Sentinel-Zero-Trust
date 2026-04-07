@@ -19,7 +19,7 @@ spec:
               echo "Running migration..."
               bun run drizzle-kit generate
               bun run drizzle-kit push
-              bun run src/utils.ts
+              timeout 60 bun run src/utils.ts || true
               echo "Migration complete"
           env:
             - name: DATABASE_URL

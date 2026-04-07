@@ -23,4 +23,5 @@ async function seedUsers() {
   }
 }
 
-seedUsers();
+await seedUsers();
+process.exit(0);

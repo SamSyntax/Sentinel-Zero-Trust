@@ -7,7 +7,7 @@ data:
   Caddyfile: |
     :80 {
       handle {
-        reverse_proxy argocd-server.argocd.svc.cluster.local:80
+        reverse_proxy h2c://argocd-server.argocd.svc.cluster.local:80
       }
     }
     :8080 {
