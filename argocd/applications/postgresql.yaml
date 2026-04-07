@@ -9,7 +9,7 @@ spec:
   project: default
   sources:
     - chart: postgresql
-      repoURL: oci://registry.kube-system.svc.cluster.local:5000/postgresql
+      repoURL: oci://registry.kube-system.svc.cluster.local:30500/postgresql
 
       targetRevision: 16.0.0
       helm:
