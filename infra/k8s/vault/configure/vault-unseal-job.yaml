@@ -21,6 +21,7 @@ spec:
             - |
               set -e
               export VAULT_ADDR="http://vault-internal.default.svc.cluster.local:8200"
+              RUN apk add --no-cache curl jq
 
               # Wait for Vault to be unsealed and ready
               for i in $(seq 1 30); do
@@ -28,7 +29,7 @@ spec:
                   echo "Vault is initialized"
                   break
                 fi
-                echo "Waiting for Vault to be initialized... ($i/60)"
+                echo "Waiting for Vault to be initialized... ($i/30)"
                 sleep 5
               done
 
@@ -38,8 +39,18 @@ spec:
               fi
 
               echo "Unsealing Vault..."
-              UNSEAL_1=$(kubectl get secret vault-unseal-keys -n default -o jsonpath='{.data.unseal-key-1}' | base64 -d)
-              UNSEAL_2=$(kubectl get secret vault-unseal-keys -n default -o jsonpath='{.data.unseal-key-2}' | base64 -d)
+              TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              CACERT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt)
+
+              UNSEAL_1=$(curl -s -H "Authorization: Bearer $TOKEN" \
+              --cacert $CACERT \
+              https://kubernetes.default.svc/api/v1/namespaces/default/secrets/vault-unseal-keys  \
+              | jq -r '.data."unseal-key-1"' | base64 -d)
+              
+              UNSEAL_2=$(curl -s -H "Authorization: Bearer $TOKEN" \
+              --cacert $CACERT \
+              https://kubernetes.default.svc/api/v1/namespaces/default/secrets/vault-unseal-keys  \
+              | jq -r '.data."unseal-key-2"' | base64 -d)
 
               vault operator unseal "$UNSEAL_1"
               vault operator unseal "$UNSEAL_2"

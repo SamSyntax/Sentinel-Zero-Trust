@@ -21,6 +21,7 @@ spec:
             - |
               set -e
               export VAULT_ADDR="http://vault-internal.default.svc.cluster.local:8200"
+              RUN apk add --no-cache curl jq
 
               if vault status -format=json 2>/dev/null | grep -q '"initialized": true'; then
                 echo "Vault is already initialized, skipping"
@@ -34,12 +35,21 @@ spec:
               UNSEAL_2=$(cat /tmp/init-output.json | grep -o '"unseal_keys_b64":\[[^]]*\]' | cut -d'[' -f2 | cut -d']' -f1 | cut -d',' -f2 | tr -d '"')
               UNSEAL_3=$(cat /tmp/init-output.json | grep -o '"unseal_keys_b64":\[[^]]*\]' | cut -d'[' -f2 | cut -d']' -f1 | cut -d',' -f3 | tr -d '"')
 
-              kubectl create secret generic vault-unseal-keys \
-                --from-literal=root-token="$ROOT_TOKEN" \
-                --from-literal=unseal-key-1="$UNSEAL_1" \
-                --from-literal=unseal-key-2="$UNSEAL_2" \
-                --from-literal=unseal-key-3="$UNSEAL_3" \
-                -n default --dry-run=client -o yaml | kubectl apply -f -
+              TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+              CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+              ROOT_TOKEN_B64=$(echo -n "$ROOT_TOKEN" | base64
+              UNSEAL_1_B64=$(echo -n "$UNSEAL_1" | base64)
+              UNSEAL_2_B64=$(echo -n "$UNSEAL_2" | base64)
+              UNSEAL_3_B64=$(echo -n "$UNSEAL_3" | base64)
+
+              curl -s -X POST \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Content-Type: application/json" \
+                --cacert $CACERT \
+                -d "{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"name\":\"vault-unseal-keys\",\"namespace\":\"default\"},\"data\":{\"root-token\":\"$ROOT_TOKEN_B64\",\"unseal-key-1\":\"$UNSEAL_1_B64\",\"unseal-key-2\":\"$UNSEAL_2_B64\",\"unseal-key-3\":\"$UNSEAL_3_B64\"}}" \
+                https://kubernetes.default.svc/api/v1/namespaces/default/secrets
+
 
               echo "Vault initialized and keys stored in secret vault-unseal-keys"
       restartPolicy: Never
