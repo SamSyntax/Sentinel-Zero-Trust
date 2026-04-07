@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: users-service-migration
+  namespace: users-service
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: localhost:30500/users-service
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running migration..."
+              bun run drizzle-kit generate
+              bun run drizzle-kit push
+              echo $DATABASE_URL
+              bun run src/utils.ts
+              ls -la ./src
+              echo "Migration complete"
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: users-service-secret
+                  key: DATABASE_URL
