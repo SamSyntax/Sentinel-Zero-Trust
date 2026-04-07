@@ -26,37 +26,56 @@ func (cm *CertManager) GetCurrentCertificate() *tls.Certificate {
 	return cm.CurrentCert
 }
 
-func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetcher, tokenProvider utils.TokenProvider, token *utils.ServiceAccountTokenContainer, namespace string, serviceName string, target string, l *slog.Logger) {
+func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetcher, tokenProvider utils.TokenProvider, token *utils.ServiceAccountTokenContainer, namespace, serviceName, spiffeId, target string, l *slog.Logger) {
 	for {
-		cm.CertMutex.Lock()
 		if token == nil || token.Mu == nil || token.Token == "" {
 			l.ErrorContext(ctx, "can't start rotation", slog.String("error", "no service account token"), slog.String("service", serviceName))
-			time.Sleep(cm.RetryDelay)
-			cm.CertMutex.Unlock()
-			continue
+			select {
+			case <-time.After(cm.RetryDelay):
+				continue
+			case <-ctx.Done():
+				return
+			}
 		}
-		if cm.CurrentCert == nil || cm.CurrentCert.Certificate == nil {
-			result, err := fetcher.Fetch(ctx, token.Token, serviceName)
+
+		cm.CertMutex.RLock()
+		needsFetch := cm.CurrentCert == nil || cm.CurrentCert.Certificate == nil
+		var certDER []byte
+		if !needsFetch {
+			certDER = cm.CurrentCert.Certificate[0]
+		}
+		cm.CertMutex.RUnlock()
+
+		if needsFetch {
+			result, err := fetcher.Fetch(ctx, token.Token, spiffeId)
 			if err != nil {
 				l.WarnContext(ctx, "initial certificate fetch failed, retrying", slog.String("error", err.Error()), slog.String("service", serviceName))
-				time.Sleep(cm.RetryDelay)
-				cm.CertMutex.Unlock()
-				continue
+				select {
+				case <-time.After(cm.RetryDelay):
+					continue
+				case <-ctx.Done():
+					return
+				}
 			}
+			cm.CertMutex.Lock()
 			cm.CurrentCert = &result.Certificate
 			cm.CurrentPodUid = result.PodUid
+			cm.CertMutex.Unlock()
 			l.InfoContext(ctx, "initial certificate fetched", slog.String("service", serviceName), slog.String("podUid", result.PodUid))
-			cm.CertMutex.Unlock()
-		}
-		cm.CertMutex.RLock()
-		leaf, err := x509.ParseCertificate(cm.CurrentCert.Certificate[0])
-		cm.CertMutex.RUnlock()
-		if err != nil {
-			l.WarnContext(ctx, "failed to parse certificate, will re-fetch", slog.String("error", err.Error()), slog.String("service", serviceName))
-			time.Sleep(cm.RetryDelay)
-			cm.CertMutex.Unlock()
 			continue
 		}
+
+		leaf, err := x509.ParseCertificate(certDER)
+		if err != nil {
+			l.WarnContext(ctx, "failed to parse certificate, will re-fetch", slog.String("error", err.Error()), slog.String("service", serviceName))
+			select {
+			case <-time.After(cm.RetryDelay):
+				continue
+			case <-ctx.Done():
+				return
+			}
+		}
+
 		window := cm.RenewalWindow
 		if window == 0 {
 			window = 5 * time.Minute
@@ -71,35 +90,44 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 			slog.String("service", serviceName),
 			slog.Time("renewal_time", renewTime),
 			slog.Duration("sleep_duration", sleepDuration))
+
 		select {
 		case <-time.After(sleepDuration):
 		case <-cm.RenewNow:
 		case <-ctx.Done():
-			cm.CertMutex.Unlock()
 			return
 		}
-		start := time.Now()
+
 		newToken, err := tokenProvider.RequestToken(namespace, serviceName)
-		duration := time.Since(start)
 		if err != nil {
-			l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
-			time.Sleep(cm.RetryDelay)
-			cm.CertMutex.Unlock()
-			continue
+			l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName))
+			select {
+			case <-time.After(cm.RetryDelay):
+				continue
+			case <-ctx.Done():
+				return
+			}
 		}
+
 		token.Mu.Lock()
 		token.Token = newToken
 		token.Mu.Unlock()
-		result, err := fetcher.Fetch(ctx, token.Token, serviceName)
-		duration = time.Since(start)
+
+		result, err := fetcher.Fetch(ctx, token.Token, spiffeId)
 		if err != nil {
-			l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName), slog.Duration("duration", duration))
-			time.Sleep(cm.RetryDelay)
-			cm.CertMutex.Unlock()
-			continue
-		} else {
-			l.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.String("podUid", result.PodUid), slog.Duration("duration", duration))
+			l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName))
+			select {
+			case <-time.After(cm.RetryDelay):
+				continue
+			case <-ctx.Done():
+				return
+			}
 		}
+
+		cm.CertMutex.Lock()
+		cm.CurrentCert = &result.Certificate
+		cm.CurrentPodUid = result.PodUid
 		cm.CertMutex.Unlock()
+		l.InfoContext(ctx, "certificate rotated successfully", slog.String("service", serviceName), slog.String("podUid", result.PodUid))
 	}
 }
