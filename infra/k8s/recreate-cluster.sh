@@ -59,6 +59,7 @@ echo "Deploying PostgreSQL..."
 bash "${PROJECT_ROOT}/dummy-services/psql-k8s/psql-helm.sh" default
 
 echo "Deploying Users Service..."
+kubectl create namespace users-service --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${PROJECT_ROOT}/dummy-services/users-service/k8s/"
 
 echo "Building and pushing sentinel-data-plane image"
@@ -72,5 +73,6 @@ echo "Deploying ArgoCD..."
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/master/manifests/install.yaml
 kubectl apply -f "${PROJECT_ROOT}/argocd/app-of-apps.yaml"
+sleep 10
 argo_pass=$(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
 echo "ArgoCD Initial Password: $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
