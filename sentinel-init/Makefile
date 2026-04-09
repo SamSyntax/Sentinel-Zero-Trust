@@ -1,6 +1,6 @@
 BUILD_DIR=bin
 BIN_NAME=sentinel-init
-DOCKERFILE=Dockerfile.init
+DOCKERFILE=Dockerfile
 IMAGE_NAME=kind.local/sentinel-init:latest
 
 .PHONY: all build clean
