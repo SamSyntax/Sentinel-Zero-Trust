@@ -44,7 +44,7 @@ helm upgrade --install control-plane "${DIR}/control-plane" \
 kubectl label namespace default sentinel-zt.io/injection=enabled --overwrite
 
 echo "Building and pushing sentinel-init image..."
-cd "${DIR}/sentinel-init"
+cd "${DIR}/../../sentinel-init"
 docker build -t kind.local/sentinel-init:latest .
 docker tag kind.local/sentinel-init:latest "${REGISTRY}/sentinel-init:latest"
 docker push "${REGISTRY}/sentinel-init:latest"
@@ -62,7 +62,7 @@ bash "${PROJECT_ROOT}/dummy-services/psql-k8s/psql-helm.sh" default
 
 echo "Deploying Users Service..."
 kubectl create namespace users-service --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "${PROJECT_ROOT}/dummy-services/users-service/k8s/"
+kubectl -n users-service apply -f "${PROJECT_ROOT}/dummy-services/users-service/k8s/"
 
 echo "Building and pushing sentinel-data-plane image"
 docker build -t "${REGISTRY}/sentinel-data-plane:latest" "${PROJECT_ROOT}/data-plane/"
@@ -71,31 +71,31 @@ helm upgrade --install data-plane "${DIR}/data-plane" \
   -n sentinel-data-plane --create-namespace \
   --set service.type=NodePort --set service.nodePort=30443
 
-echo "Deploying ArgoCD..."
-kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/master/manifests/install.yaml
-echo "Waiting for ArgoCD to be ready..."
-# Wait for the ArgoCD server deployment to be available
-kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
-
-# Now wait for the initial admin secret to be created
-echo "Waiting for ArgoCD initial admin secret..."
-until kubectl get secret -n argocd argocd-initial-admin-secret >/dev/null 2>&1; do
-  echo "Waiting for argocd-initial-admin-secret to be created..."
-  sleep 5
-done
-
-kubectl port-forward svc/argocd-server -n argocd $ARGO_FW_PORT:443 >/dev/null 2>&1 &
-PF_PID=$!
-trap "kill $PF_PID 2>/dev/null || true" EXIT
-
-# Now get the password
-argo_pass=$(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
-argocd login localhost:8081 --insecure --username admin --password "$argo_pass"
-
-argocd repo add "$REPO_URL" \
-  --ssh-private-key-path "$REPO_KEY_PATH" \
-  --insecure-skip-server-verification
-
-kubectl apply -f "${PROJECT_ROOT}/argocd/app-of-apps.yaml"
-echo "ArgoCD Initial Password: $argo_pass"
+# echo "Deploying ArgoCD..."
+# kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+# kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/master/manifests/install.yaml
+# echo "Waiting for ArgoCD to be ready..."
+# # Wait for the ArgoCD server deployment to be available
+# kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
+#
+# # Now wait for the initial admin secret to be created
+# echo "Waiting for ArgoCD initial admin secret..."
+# until kubectl get secret -n argocd argocd-initial-admin-secret >/dev/null 2>&1; do
+#   echo "Waiting for argocd-initial-admin-secret to be created..."
+#   sleep 5
+# done
+#
+# kubectl port-forward svc/argocd-server -n argocd $ARGO_FW_PORT:443 >/dev/null 2>&1 &
+# PF_PID=$!
+# trap "kill $PF_PID 2>/dev/null || true" EXIT
+#
+# # Now get the password
+# argo_pass=$(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
+# argocd login localhost:8081 --insecure --username admin --password "$argo_pass"
+#
+# argocd repo add "$REPO_URL" \
+#   --ssh-private-key-path "$REPO_KEY_PATH" \
+#   --insecure-skip-server-verification
+#
+# kubectl apply -f "${PROJECT_ROOT}/argocd/app-of-apps.yaml"
+# echo "ArgoCD Initial Password: $argo_pass"
