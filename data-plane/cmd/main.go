@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"sentinel-zt/data-plane/internal/config"
@@ -52,9 +53,9 @@ func main() {
 	if env == "" {
 		env = "local"
 		loggerCfg.Env = env
-		cfg = config.CreateProxyConfig(8444, serviceName, loggerCfg)
+		cfg = config.CreateProxyConfig(port, serviceName, loggerCfg)
 	} else {
-		cfg = config.CreateProxyConfig(8443, serviceName, loggerCfg)
+		cfg = config.CreateProxyConfig(port, serviceName, loggerCfg)
 	}
 	cfg.Load()
 
@@ -79,16 +80,22 @@ func main() {
 
 	logger.Info("starting sentinel-zt proxy", slog.String("mode", proxyMode), slog.Int("port", port))
 	p, err := proxy.NewProxy(ctx, cfg, fetcher, tokenProvider, logger)
+	var failCount int = 0
 	if err != nil {
-		logger.Error("failed to create proxy", slog.String("error", err.Error()))
-		for {
-			logger.Info("Retrying to create proxy in 10 seconds...")
+		logger.Error("failed to create proxy...", slog.String("error", err.Error()))
+		for failCount <= 10 {
+			failCount++
+			logger.Info(fmt.Sprintf("Retrying to create proxy in 10 seconds, attempt %d/10", failCount))
 			time.Sleep(10 * time.Second)
 			p, err = proxy.NewProxy(ctx, cfg, fetcher, tokenProvider, logger)
 			if err == nil {
 				break
 			}
 			logger.Error("failed to create proxy", slog.String("error", err.Error()))
+			if failCount == 10 {
+				logger.Error("failed to create proxy after 10 attempts, exiting...")
+				os.Exit(1)
+			}
 		}
 	}
 	if err := p.Run(); err != nil {

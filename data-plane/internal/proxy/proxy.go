@@ -183,6 +183,10 @@ func (p *Proxy) Run() error {
 		return p.runRedirectMode()
 	}
 
+	if os.Getenv("PROXY_MODE") == "tproxy" {
+		return p.runTProxyMode()
+	}
+
 	return p.runDirectMode()
 }
 
@@ -217,19 +221,21 @@ func (p *Proxy) runRedirectMode() error {
 	if podIP == "" {
 		p.logger.Warn("POD_IP not set, cannot determine inbound/outbound")
 	}
+
 	tlsConfig := p.GetInboundTLSConfig()
 	ln, err := tls.Listen("tcp", fmt.Sprintf(":%d", p.cfg.InboundPort), tlsConfig)
 	if err != nil {
-		return fmt.Errorf("failed to listen on rediracted port %d: %w", p.cfg.InboundPort, err)
+		return fmt.Errorf("failed to listen on redirected port %d: %w", p.cfg.InboundPort, err)
 	}
 	p.logger.Info("starting proxy in redirect mode", slog.Int("port", p.cfg.InboundPort), slog.String("pod_ip", podIP))
+
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			p.logger.Warn("accept error", slog.String("error", err.Error()))
 			continue
 		}
-		p.handleRedirectedConnection(conn, podIP)
+		go p.handleRedirectedConnection(conn, podIP)
 	}
 }
 
@@ -278,18 +284,50 @@ func CreateProxyHandler(targetURL *url.URL, l *slog.Logger) http.Handler {
 
 func (p *Proxy) handleRedirectedConnection(conn net.Conn, podIP string) {
 	defer conn.Close()
+
+	var originalDst net.Addr
+	var err error
+
+	if tlsConn, ok := conn.(*tls.Conn); ok {
+		rawConn := tlsConn.NetConn()
+		if rawTCPConn, ok := rawConn.(*net.TCPConn); ok {
+			originalDst, err = utils.GetOriginalDest(rawTCPConn)
+			if err != nil {
+				p.logger.Warn("failed to get original destination", slog.String("error", err.Error()))
+				return
+			}
+			p.logger.Debug("redirected connection (via TLS)", slog.String("original_dst", originalDst.String()), slog.String("pod_ip", podIP))
+			if podIP != "" {
+				if host, _, splitErr := net.SplitHostPort(originalDst.String()); splitErr == nil {
+					if host == podIP {
+						p.forwardLocalApp(conn)
+						return
+					}
+				}
+			}
+			p.forwardOutbound(conn, originalDst)
+			return
+		}
+	}
+
 	tcpConn, ok := conn.(*net.TCPConn)
 	if !ok {
 		p.logger.Warn("not a TCP connection")
 		return
 	}
-	originalDst, err := utils.GetOriginalDest(tcpConn)
+	originalDst, err = utils.GetOriginalDest(tcpConn)
 	if err != nil {
 		p.logger.Warn("failed to get original destination", slog.String("error", err.Error()))
 		return
 	}
-	p.logger.Debug("redirected connection", slog.String("original_dst", originalDst.String()), slog.String("pod_ip", podIP))
-	if podIP != "" && originalDst.String() == podIP {
+
+	originalIP := originalDst.String()
+	if host, _, err := net.SplitHostPort(originalIP); err == nil {
+		originalIP = host
+	}
+
+	p.logger.Debug("redirected connection", slog.String("original_dst", originalDst.String()), slog.String("pod_ip", podIP), slog.String("original_ip", originalIP))
+	if podIP != "" && originalIP == podIP {
 		p.forwardLocalApp(conn)
 	} else {
 		p.forwardOutbound(conn, originalDst)
@@ -302,13 +340,25 @@ func (p *Proxy) forwardLocalApp(clientConn net.Conn) {
 		p.logger.Error("failed to parse target URL", slog.String("error", err.Error()))
 		return
 	}
-	appConn, err := net.Dial("tcp", u.Host)
-	if err != nil {
-		p.logger.Error("failed to connect to app", slog.String("error", err.Error()), slog.String("target", u.Host))
-		return
+
+	if tlsConn, ok := clientConn.(*tls.Conn); ok {
+		appConn, err := net.Dial("tcp", u.Host)
+		if err != nil {
+			p.logger.Error("failed to connect to app", slog.String("error", err.Error()), slog.String("target", u.Host))
+			return
+		}
+		p.logger.Info("forwarding to local app (TLS terminated)", slog.String("target", u.Host))
+		p.proxyCopy(appConn, tlsConn, u.Host)
+	} else {
+		appConn, err := net.Dial("tcp", u.Host)
+		if err != nil {
+			p.logger.Error("failed to connect to app", slog.String("error", err.Error()), slog.String("target", u.Host))
+			return
+		}
+		defer appConn.Close()
+		p.logger.Info("forwarding to local app", slog.String("target", u.Host))
+		p.proxyCopy(appConn, clientConn, u.Host)
 	}
-	defer appConn.Close()
-	p.proxyCopy(appConn, clientConn, u.Host)
 }
 
 func (p *Proxy) forwardOutbound(clientConn net.Conn, dst net.Addr) {
@@ -318,6 +368,14 @@ func (p *Proxy) forwardOutbound(clientConn net.Conn, dst net.Addr) {
 		clientConn.Close()
 		return
 	}
+
+	err := tlsConn.Handshake()
+	if err != nil {
+		p.logger.Error("TLS handshake failed", slog.String("destination", dst.String()), slog.String("error", err.Error()))
+		clientConn.Close()
+		return
+	}
+
 	connState := tlsConn.ConnectionState()
 	if len(connState.PeerCertificates) == 0 {
 		p.logger.Error("no client certificate provided", slog.String("dst", dst.String()))
@@ -328,6 +386,7 @@ func (p *Proxy) forwardOutbound(clientConn net.Conn, dst net.Addr) {
 	clientCert := connState.PeerCertificates[0]
 	clientIdentity := ExtractIdentity(clientCert)
 	p.logger.Info("outbound request", slog.String("client_identity", clientIdentity), slog.String("destination", dst.String()))
+
 	outboundTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{*p.certManager.GetCurrentCertificate()},
 		RootCAs:      p.caCertPool,
@@ -337,7 +396,7 @@ func (p *Proxy) forwardOutbound(clientConn net.Conn, dst net.Addr) {
 	dialAddr := dst.String()
 	outboundConn, err := tls.Dial("tcp", dialAddr, outboundTLSConfig)
 	if err != nil {
-		p.logger.Error("faiuled to establish outbound mTLS", slog.String("destination", dialAddr), slog.String("error", err.Error()))
+		p.logger.Error("failed to establish outbound mTLS", slog.String("destination", dialAddr), slog.String("error", err.Error()))
 		clientConn.Close()
 		return
 	}
@@ -351,7 +410,7 @@ func (p *Proxy) proxyCopy(dst, src net.Conn, name string) {
 	go func() {
 		defer wg.Done()
 		n, err := io.Copy(dst, src)
-		if err != nil || err != io.EOF {
+		if err != nil && err != io.EOF {
 			p.logger.Warn("copy error",
 				slog.String("direction", "src→dst"),
 				slog.String("target", name),
@@ -363,7 +422,7 @@ func (p *Proxy) proxyCopy(dst, src net.Conn, name string) {
 	go func() {
 		defer wg.Done()
 		n, err := io.Copy(src, dst)
-		if err != nil || err != io.EOF {
+		if err != nil && err != io.EOF {
 			p.logger.Warn("copy error",
 				slog.String("direction", "dst→src"),
 				slog.String("target", name),
@@ -390,4 +449,143 @@ func ExtractIdentity(cert *x509.Certificate) string {
 		}
 	}
 	return cert.Subject.CommonName
+}
+
+func createTProxyListener(port int) (net.Listener, error) {
+	lc := &net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			return c.Control(func(fd uintptr) {
+				syscall.SetsockoptInt(int(fd), syscall.SOL_IP, syscall.IP_TRANSPARENT, 1)
+			})
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", port))
+}
+
+func (p *Proxy) runTProxyMode() error {
+	podIP := os.Getenv("POD_IP")
+	if podIP == "" {
+		p.logger.Warn("POD_IP not set, cannot determine inbound/outbound")
+	}
+
+	ln, err := createTProxyListener(p.cfg.InboundPort)
+	if err != nil {
+		return fmt.Errorf("failed to create TPROXY listener on port %d: %w", p.cfg.InboundPort, err)
+	}
+	tlsConfig := p.GetInboundTLSConfig()
+	tlsLn := tls.NewListener(ln, tlsConfig)
+	p.logger.Info("starting proxy in TPROXY mode", slog.Int("port", p.cfg.InboundPort), slog.String("pod_ip", podIP))
+	for {
+		conn, err := tlsLn.Accept()
+		if err != nil {
+			p.logger.Warn("accept error", slog.String("error", err.Error()))
+			continue
+		}
+		go p.handleTProxyConnection(conn, podIP)
+
+	}
+}
+
+func (p *Proxy) handleTProxyConnection(clientConn net.Conn, podIP string) {
+	defer clientConn.Close()
+
+	tlsConn, ok := clientConn.(*tls.Conn)
+	if !ok {
+		p.logger.Error("inbound connection is not TLS - rejected", slog.String("error", "connection is not TLS"))
+		return
+	}
+
+	err := tlsConn.Handshake()
+	if err != nil {
+		p.logger.Error("TLS handshake failed - rejecting connection", slog.String("error", err.Error()))
+		return
+	}
+
+	connState := tlsConn.ConnectionState()
+	if len(connState.PeerCertificates) == 0 {
+		p.logger.Error("no client certificate provided")
+		return
+	}
+
+	clientCert := connState.PeerCertificates[0]
+	clientIdentity := ExtractIdentity(clientCert)
+
+	originalDst, err := getOriginalDst(clientConn)
+	if err != nil {
+		p.logger.Warn("failed to get original destination", slog.String("error", err.Error()))
+		return
+	}
+
+	remoteAddr := clientConn.RemoteAddr().(*net.TCPAddr)
+	p.logger.Info("TPROXY connection",
+		slog.String("client_identity", clientIdentity),
+		slog.String("client_ip", remoteAddr.IP.String()),
+		slog.String("original_dst", originalDst.String()),
+		slog.String("pod_ip", podIP),
+	)
+
+	if podIP != "" {
+		if host, _, _ := net.SplitHostPort(originalDst.String()); host == podIP {
+			p.forwardLocalAppTProxy(tlsConn, clientIdentity)
+			return
+		}
+	}
+	p.forwardOutboundTProxy(tlsConn, originalDst, clientIdentity)
+}
+
+func getOriginalDst(conn net.Conn) (net.Addr, error) {
+	tcpConn, ok := conn.(*net.TCPConn)
+	if !ok {
+		return nil, fmt.Errorf("not a TCP connection")
+	}
+	return utils.GetOriginalDest(tcpConn)
+}
+
+func (p *Proxy) forwardLocalAppTProxy(clientConn *tls.Conn, clientIdentity string) {
+	u, err := url.Parse(p.cfg.TargetURL)
+	if err != nil {
+		p.logger.Error("failed to parse target URL", slog.String("error", err.Error()))
+		return
+	}
+
+	appConn, err := net.Dial("tcp", u.Host)
+	if err != nil {
+		p.logger.Error("failed to connect to app", slog.String("error", err.Error()), slog.String("target", u.Host))
+		return
+	}
+	defer appConn.Close()
+	p.logger.Info("forwarding to local app (mTLS)",
+		slog.String("target", u.Host),
+		slog.String("client_identity", clientIdentity),
+	)
+
+	p.proxyCopy(appConn, clientConn, u.Host)
+}
+
+func (p *Proxy) forwardOutboundTProxy(clientConn *tls.Conn, dst net.Addr, clientIdentity string) {
+	p.logger.Info("forwarding outbound (mTLS)",
+		slog.String("client_identity", clientIdentity),
+		slog.String("destination", dst.String()))
+
+	outboundTLSConfig := &tls.Config{
+		Certificates: []tls.Certificate{*p.certManager.GetCurrentCertificate()},
+		RootCAs:      p.caCertPool,
+		ServerName:   ExtractServerName(dst.String()),
+		MinVersion:   tls.VersionTLS13,
+	}
+
+	dialAddr := dst.String()
+	outboundConn, err := tls.Dial("tcp", dialAddr, outboundTLSConfig)
+	if err != nil {
+		p.logger.Error("failed to establish outbound mTLS",
+			slog.String("destination", dialAddr),
+			slog.String("error", err.Error()))
+		return
+	}
+	defer outboundConn.Close()
+	p.proxyCopy(clientConn, outboundConn, dst.String())
 }

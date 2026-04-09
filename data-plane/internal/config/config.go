@@ -63,7 +63,7 @@ func (pc *ProxyConfig) Load() {
 		pc.OutboundPort = 15001
 	}
 	if pc.TargetURL == "" {
-		pc.TargetURL = "http://localhost:8080"
+		pc.TargetURL = "http://localhost:3005"
 	}
 	if pc.ControlPlaneURL == "" {
 		pc.ControlPlaneURL = "http://localhost:8081/api/v1/identity/issue"
