@@ -12,12 +12,12 @@ metadata:
     {{- include "sentinel.labels" . | nindent 4 }}
 webhooks:
   - name: injector.sentinel-zt.io
-    failurePolicy: Ignore
+    failurePolicy: Fail
     clientConfig:
       service:
         name: {{ include "sentinel.fullname" . }}
         namespace: {{ .Release.Namespace }}
-        path: /mutate
+        path: /webhook/mutate
         port: {{ .Values.containers.port }}
       caBundle: {{ $caBundle }}
     rules:
