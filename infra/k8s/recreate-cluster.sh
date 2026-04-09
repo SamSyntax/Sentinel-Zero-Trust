@@ -6,10 +6,12 @@ CLUSTER_NAME="sentinel-zt"
 REGISTRY="localhost:5000"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${DIR}/../.." && pwd)"
+ARGO_FW_PORT=8081
+REPO_KEY_PATH="/home/sam/.ssh/argocd/argo_key"
+REPO_URL="git@github.com:SamSyntax/Sentinel-Zero-Trust.git"
 
 echo "Deleting Kind Cluster: ${CLUSTER_NAME}"
 kind delete cluster --name "${CLUSTER_NAME}" || true
-
 
 echo "Creating Kind Cluster: ${CLUSTER_NAME}"
 kind create cluster --name "${CLUSTER_NAME}" --config "${DIR}/kind/kind-config.yaml"
@@ -72,7 +74,28 @@ helm upgrade --install data-plane "${DIR}/data-plane" \
 echo "Deploying ArgoCD..."
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/master/manifests/install.yaml
-kubectl apply -f "${PROJECT_ROOT}/argocd/app-of-apps.yaml"
-sleep 10
+echo "Waiting for ArgoCD to be ready..."
+# Wait for the ArgoCD server deployment to be available
+kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
+
+# Now wait for the initial admin secret to be created
+echo "Waiting for ArgoCD initial admin secret..."
+until kubectl get secret -n argocd argocd-initial-admin-secret >/dev/null 2>&1; do
+  echo "Waiting for argocd-initial-admin-secret to be created..."
+  sleep 5
+done
+
+kubectl port-forward svc/argocd-server -n argocd $ARGO_FW_PORT:443 >/dev/null 2>&1 &
+PF_PID=$!
+trap "kill $PF_PID 2>/dev/null || true" EXIT
+
+# Now get the password
 argo_pass=$(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
-echo "ArgoCD Initial Password: $(kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
+argocd login localhost:8081 --insecure --username admin --password "$argo_pass"
+
+argocd repo add "$REPO_URL" \
+  --ssh-private-key-path "$REPO_KEY_PATH" \
+  --insecure-skip-server-verification
+
+kubectl apply -f "${PROJECT_ROOT}/argocd/app-of-apps.yaml"
+echo "ArgoCD Initial Password: $argo_pass"
