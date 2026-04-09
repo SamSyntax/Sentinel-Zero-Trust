@@ -36,7 +36,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
-          "expr": "sum(count_over_time({container=\"sentinel-data-plane\"} | json | level=\"ERROR\" [5m]))",
+          "expr": "sum(count_over_time({container=\"sentinel-proxy\"} | json | level=\"ERROR\" [5m]))",
           "legendFormat": "Errors (Proxy)",
           "refId": "A"
         }
@@ -75,7 +75,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
-          "expr": "max(quantile_over_time(0.99, {container=\"sentinel-data-plane\"} | json | msg=\"certificate rotated successfully\" | unwrap duration [1m])) by (container)",
+          "expr": "max(quantile_over_time(0.99, {container=\"sentinel-proxy\"} | json | msg=\"certificate rotated successfully\" | unwrap duration [1m])) by (container)",
           "legendFormat": "P99 Latency",
           "refId": "A"
         }
@@ -131,7 +131,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
-          "expr": "{container=~\"sentinel-control-plane|sentinel-data-plane\"} | json",
+          "expr": "{container=~\"sentinel-control-plane|sentinel-proxy\"} | json",
           "refId": "A"
         }
       ]
