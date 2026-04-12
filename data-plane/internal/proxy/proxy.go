@@ -1,11 +1,9 @@
 package proxy
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -25,76 +23,6 @@ import (
 	"syscall"
 	"time"
 )
-
-type IdentityRequest struct {
-	ServiceName string `json:"serviceName"`
-}
-
-type IdentityResponse struct {
-	Certificate  string `json:"certificate"`
-	PrivateKey   string `json:"privateKey"`
-	IssuingCa    string `json:"issuingCa"`
-	SerialNumber string `json:"serialNumber"`
-}
-
-func fetchIdentity(controlPlaneURL string, token utils.ServiceAccountToken, serviceName string) (tls.Certificate, error) {
-	reqBody, err := json.Marshal(IdentityRequest{ServiceName: serviceName})
-	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("Failed to marshal request: %v\n", err)
-	}
-
-	cpURL, err := url.Parse(controlPlaneURL)
-	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("Failed to parse control plane URL: %v\n", err)
-	}
-
-	var headers http.Header = make(http.Header, 2)
-	headers.Add("Content-Type", "application/json")
-	headers.Add("X-Sentinel-Token", "Bearer "+string(token))
-
-	req := http.Request{
-		Method: http.MethodPost,
-		URL:    cpURL,
-		Header: headers.Clone(),
-		Body:   io.NopCloser(bytes.NewBuffer(reqBody)),
-	}
-	var client http.Client
-	resp, err := client.Do(&req)
-	if err != nil {
-		return tls.Certificate{}, fmt.Errorf("Failed to issue identity: %v\n", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return tls.Certificate{}, fmt.Errorf("Unexpected response status: %d\n", resp.StatusCode)
-	}
-
-	var idResponse IdentityResponse
-	if err := json.NewDecoder(resp.Body).Decode(&idResponse); err != nil {
-		return tls.Certificate{}, fmt.Errorf("Failed to decode response: %v\n", err)
-	}
-
-	return tls.X509KeyPair([]byte(idResponse.Certificate), []byte(idResponse.PrivateKey))
-
-}
-
-func createProxy(targetURL *url.URL, l *slog.Logger) *httputil.ReverseProxy {
-	proxy := httputil.NewSingleHostReverseProxy(targetURL)
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		l.ErrorContext(r.Context(), "proxy_upstream_error",
-			slog.String("error", err.Error()),
-			slog.String("backend_url", targetURL.String()),
-			slog.String("client_ip", r.RemoteAddr),
-		)
-		if r.TLS != nil && len(r.TLS.PeerCertificates) > 0 {
-			w.WriteHeader(http.StatusUnauthorized)
-		} else {
-			w.WriteHeader(http.StatusBadGateway)
-		}
-	}
-
-	return proxy
-}
 
 func CoreHandlers(proxy *httputil.ReverseProxy, l *slog.Logger) *http.ServeMux {
 	mainHandler := http.NewServeMux()

@@ -55,19 +55,29 @@ create_config_map() {
 }
 
 get_unseal_key() {
+  if init=$(kubectl exec vault-0 -- vault status -format=json | jq -e .initialized); then
+    echo -e "${BLUE}Vault is already initialized.${NC}"
+    return false
+  fi
   echo -e "${BLUE}Initializing vault...${NC}"
   if ! output=$(kubectl exec vault-0 -- vault operator init -key-shares=1 -key-threshold=1 -format=json 2>&1); then
     echo -e "${RED}Error initializing Vault:${NC}\n${RED}$output"
     echo -e "${YELLOW} $output ${NC}"
+    return false
   else
     echo "$output" >"$KEYS_FILE"
   fi
   UNSEAL_KEY=$(jq -r '.unseal_keys_b64[0]' "$KEYS_FILE" | tr -d '[:space:]')
+  return true
 }
 
 unseal_vault() {
+  if ! sealed=$(kubectl exec vault-0 -- vault status --format=json | jq -e .sealed); then
+    echo -e "${BLUE}Vault is already unsealed.${NC}"
+    exit 0
+  fi
   echo -e "${BLUE}Unsealing Vault...${NC}"
-  get_unseal_key
+  init=get_unseal_key
   if [[ -z "$UNSEAL_KEY" || "$UNSEAL_KEY" == "null" ]]; then
     echo -e "${RED}Error: Failed to extract UNSEAL_KEY. Check your $KEYS_FILE${NC}"
     exit 1
@@ -81,7 +91,6 @@ unseal_vault() {
 
 apply_terraform() {
   echo -e "${BLUE}Applying Terraform (PKI & Secrets)...${NC}"
-
 
   kubectl port-forward --address 127.0.0.1 pod/vault-0 $1:8200 >/dev/null 2>&1 &
   PF_PID=$!
