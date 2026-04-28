@@ -36,6 +36,11 @@ kubectl create secret tls webhook-server-tls \
   --key=./certs/tls.key \
   --dry-run=client --namespace=sentinel-control-plane -o yaml | kubectl apply -f -
 
+echo "Creating webhook CA secret for MutatingWebhookConfiguration..."
+kubectl create secret generic webhook-ca \
+  --from-file=root_ca.crt=./certs/issuing_ca.crt \
+  --dry-run=client --namespace=sentinel-control-plane -o yaml | kubectl apply -f -
+
 echo "Creating sentinel-root-ca secret for data plane proxies..."
 kubectl create secret generic sentinel-root-ca \
   --from-file=root_ca.crt=./certs/issuing_ca.crt \

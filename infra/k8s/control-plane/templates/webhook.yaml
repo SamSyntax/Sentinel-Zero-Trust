@@ -29,6 +29,8 @@ webhooks:
     sideEffects: None
     timeoutSeconds: 5
     namespaceSelector:
+      matchLabels:
+        sentinel-zt.io/injection: enabled
       matchExpressions:
         - key: kubernetes.io/metadata.name
           operator: NotIn

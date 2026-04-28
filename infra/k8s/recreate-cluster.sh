@@ -24,6 +24,19 @@ kubectl create namespace sentinel-data-plane --dry-run=client -o yaml | kubectl 
 kubectl create namespace sentinel-control-plane --dry-run=client -o yaml | kubectl apply -f -
 
 bash "${DIR}/vault/boot-vault.sh" -a -p 8210
+
+echo "Verifying Vault bootstrap health..."
+VAULT_STATUS_JSON=$(kubectl exec vault-0 -- vault status -format=json 2>/dev/null || true)
+if ! jq -e . >/dev/null 2>&1 <<<"$VAULT_STATUS_JSON"; then
+  echo "Vault status output is invalid after bootstrap"
+  exit 1
+fi
+
+if [[ "$(jq -r '.initialized' <<<"$VAULT_STATUS_JSON")" != "true" || "$(jq -r '.sealed' <<<"$VAULT_STATUS_JSON")" != "false" ]]; then
+  echo "Vault is not ready after bootstrap. Expected initialized=true and sealed=false."
+  exit 1
+fi
+
 bash "${DIR}/observability/setup-observability.sh"
 
 echo "Bootstrapping Vault PKI and Webhook TLS..."
@@ -58,10 +71,14 @@ docker push "${REGISTRY}/users-service:latest"
 cd "${PROJECT_ROOT}"
 
 echo "Deploying PostgreSQL..."
-bash "${PROJECT_ROOT}/dummy-services/psql-k8s/psql-helm.sh" default
+bash "${PROJECT_ROOT}/dummy-services/psql-k8s/psql-helm.sh" database
 
 echo "Deploying Users Service..."
 kubectl create namespace users-service --dry-run=client -o yaml | kubectl apply -f -
+kubectl label namespace users-service sentinel-zt.io/injection=enabled --overwrite
+kubectl create secret generic sentinel-root-ca \
+  --from-file=root_ca.crt="${PROJECT_ROOT}/certs/root_ca.crt" \
+  --dry-run=client --namespace=users-service -o yaml | kubectl apply -f -
 kubectl -n users-service apply -f "${PROJECT_ROOT}/dummy-services/users-service/k8s/"
 
 echo "Building and pushing sentinel-data-plane image"

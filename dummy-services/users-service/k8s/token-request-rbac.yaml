@@ -1,0 +1,24 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: users-service-token-requester
+  namespace: users-service
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    resourceNames: ["users-service"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: users-service-token-requester
+  namespace: users-service
+subjects:
+  - kind: ServiceAccount
+    name: users-service
+    namespace: users-service
+roleRef:
+  kind: Role
+  name: users-service-token-requester
+  apiGroup: rbac.authorization.k8s.io

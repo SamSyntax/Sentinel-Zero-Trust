@@ -19,6 +19,7 @@ clean_vault() {
   echo -e "${GREEN}Cleaning up old Vault deployment...${NC}"
   helm uninstall vault 2>/dev/null || true
   kubectl delete pvc data-vault-0 --ignore-not-found=true 2>/dev/null || true
+  rm -f "$KEYS_FILE"
 }
 
 install_vault() {
@@ -54,38 +55,124 @@ create_config_map() {
   fi
 }
 
+wait_for_vault_ready() {
+  echo -e "${BLUE}Waiting for Vault to be ready...${NC}"
+  local max_attempts=30
+  local attempt=1
+  # Initial wait for Vault to start up
+  sleep 5
+  while [[ $attempt -le $max_attempts ]]; do
+    # Vault status returns non-zero exit codes while sealed/not initialized.
+    # Capture output without failing under set -e.
+    local status_json
+    status_json=$(kubectl exec vault-0 -- vault status -format=json 2>/dev/null || true)
+
+    if jq -e . >/dev/null 2>&1 <<<"$status_json"; then
+      if [[ "$(jq -r '.sealed' <<<"$status_json")" == "false" ]]; then
+        echo -e "${GREEN}Vault is ready (unsealed)${NC}"
+      else
+        echo -e "${GREEN}Vault is ready (sealed, needs unseal)${NC}"
+      fi
+      return 0
+    fi
+    echo -e "${YELLOW}Attempt $attempt/$max_attempts: Vault not ready yet, waiting...${NC}"
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+  echo -e "${RED}Vault did not become ready in time${NC}"
+  return 1
+}
+
 get_unseal_key() {
-  if init=$(kubectl exec vault-0 -- vault status -format=json | jq -e .initialized); then
-    echo -e "${BLUE}Vault is already initialized.${NC}"
-    return false
+  # First wait for Vault to be ready
+  if ! wait_for_vault_ready; then
+    echo -e "${RED}Vault is not ready${NC}"
+    return 1
   fi
-  echo -e "${BLUE}Initializing vault...${NC}"
-  if ! output=$(kubectl exec vault-0 -- vault operator init -key-shares=1 -key-threshold=1 -format=json 2>&1); then
-    echo -e "${RED}Error initializing Vault:${NC}\n${RED}$output"
-    echo -e "${YELLOW} $output ${NC}"
-    return false
+  
+  local status_json
+  status_json=$(kubectl exec vault-0 -- vault status -format=json 2>/dev/null || true)
+
+  if ! jq -e . >/dev/null 2>&1 <<<"$status_json"; then
+    echo -e "${RED}Failed to parse vault status output while checking initialization${NC}"
+    return 1
+  fi
+
+  local initialized
+  initialized=$(jq -r '.initialized' <<<"$status_json")
+
+  if [[ "$initialized" == "false" ]]; then
+    echo -e "${BLUE}Initializing vault...${NC}"
+    if ! output=$(kubectl exec vault-0 -- vault operator init -key-shares=1 -key-threshold=1 -format=json 2>&1); then
+      echo -e "${RED}Error initializing Vault:${NC}\n${output}${NC}"
+      return 1
+    fi
+    echo "$output" > "$KEYS_FILE"
+    echo -e "${GREEN}Vault initialized. Keys saved to $KEYS_FILE${NC}"
   else
-    echo "$output" >"$KEYS_FILE"
+    echo -e "${BLUE}Vault is already initialized.${NC}"
   fi
-  UNSEAL_KEY=$(jq -r '.unseal_keys_b64[0]' "$KEYS_FILE" | tr -d '[:space:]')
-  return true
+
+  # Read key from file if it exists
+  if [[ -f "$KEYS_FILE" ]]; then
+    UNSEAL_KEY=$(jq -r '.unseal_keys_b64[0]' "$KEYS_FILE" | tr -d '[:space:]')
+    echo -e "${BLUE}Loaded unseal key from file${NC}"
+    return 0
+  fi
+
+  echo -e "${RED}Error: No keys file found at $KEYS_FILE${NC}"
+  return 1
 }
 
 unseal_vault() {
-  if ! sealed=$(kubectl exec vault-0 -- vault status --format=json | jq -e .sealed); then
-    echo -e "${BLUE}Vault is already unsealed.${NC}"
+  # Get and set the unseal key
+  get_unseal_key
+  local status=$?
+  if [[ $status -ne 0 ]]; then
+    echo -e "${RED}Failed to get unseal key${NC}"
+    exit 1
+  fi
+
+  # Check if already unsealed
+  local sealed
+  local status_json
+  status_json=$(kubectl exec vault-0 -- vault status -format=json 2>/dev/null || true)
+
+  if ! jq -e . >/dev/null 2>&1 <<<"$status_json"; then
+    echo -e "${RED}Failed to parse vault status output while checking seal state${NC}"
+    exit 1
+  fi
+
+  sealed=$(jq -r '.sealed' <<<"$status_json")
+  if [[ "$sealed" == "false" ]]; then
+    echo -e "${BLUE}Vault is already unsealed${NC}"
     exit 0
   fi
+
   echo -e "${BLUE}Unsealing Vault...${NC}"
-  init=get_unseal_key
+
   if [[ -z "$UNSEAL_KEY" || "$UNSEAL_KEY" == "null" ]]; then
-    echo -e "${RED}Error: Failed to extract UNSEAL_KEY. Check your $KEYS_FILE${NC}"
+    echo -e "${RED}Error: No UNSEAL_KEY available${NC}"
     exit 1
   fi
-  if ! output=$(kubectl exec vault-0 -- vault operator unseal "$UNSEAL_KEY" </dev/null 2>&1); then
-    echo -e "${RED}Error unsealing Vault:${NC}\n${RED}$output${NC}"
+
+  if ! output=$(kubectl exec vault-0 -- vault operator unseal "$UNSEAL_KEY" 2>&1); then
+    echo -e "${RED}Error unsealing vault:${NC}\n${RED}$output${NC}"
     exit 1
   fi
+
+  local post_unseal_status_json
+  post_unseal_status_json=$(kubectl exec vault-0 -- vault status -format=json 2>/dev/null || true)
+  if ! jq -e . >/dev/null 2>&1 <<<"$post_unseal_status_json"; then
+    echo -e "${RED}Vault returned invalid status after unseal${NC}"
+    exit 1
+  fi
+
+  if [[ "$(jq -r '.initialized' <<<"$post_unseal_status_json")" != "true" || "$(jq -r '.sealed' <<<"$post_unseal_status_json")" != "false" ]]; then
+    echo -e "${RED}Vault is not healthy after unseal (expected initialized=true and sealed=false)${NC}"
+    exit 1
+  fi
+
   echo -e "${GREEN}Vault successfully unsealed.${NC}"
 }
 
@@ -212,7 +299,7 @@ if [[ "$RUN_INSTALL" == true ]]; then
   create_config_map
   install_vault
   echo -e "${BLUE}Waiting for pod to be ready...${NC}"
-  kubectl wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 --timeout=60s
+  kubectl wait --for=jsonpath='{.status.phase}'=Running pod/vault-0 --timeout=120s
 fi
 
 if [[ "$RUN_UNSEAL" == true ]]; then
@@ -228,4 +315,4 @@ if [[ "$RUN_SYNC" == true ]]; then
   echo "Skipping sync_vault_token"
 fi
 
-echo -e "${GREEN}Done!${NC}"
+echo -e "${GREEN}Done${NC}"
