@@ -26,7 +26,7 @@ func (cm *CertManager) GetCurrentCertificate() *tls.Certificate {
 	return cm.CurrentCert
 }
 
-func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetcher, tokenProvider utils.TokenProvider, token *utils.ServiceAccountTokenContainer, namespace, serviceName, spiffeId, target string, l *slog.Logger) {
+func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetcher, tokenProvider utils.TokenProvider, token *utils.ServiceAccountTokenContainer, namespace, serviceName, serviceAccount, podName, podUID, spiffeId, target string, l *slog.Logger) {
 	for {
 		if token == nil || token.Mu == nil || token.Token == "" {
 			l.ErrorContext(ctx, "can't start rotation", slog.String("error", "no service account token"), slog.String("service", serviceName))
@@ -99,7 +99,7 @@ func (cm *CertManager) StartRotation(ctx context.Context, fetcher grpc.CertFetch
 			return
 		}
 
-		newToken, err := tokenProvider.RequestToken(namespace, serviceName)
+		newToken, err := tokenProvider.RequestToken(namespace, serviceAccount, podName, podUID)
 		if err != nil {
 			l.WarnContext(ctx, "certificate rotation failed, will retry", slog.String("error", err.Error()), slog.String("service", serviceName))
 			select {

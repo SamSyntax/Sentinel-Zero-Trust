@@ -17,6 +17,9 @@ type ProxyConfig struct {
 	TargetGRPC          string
 	TrustedDomain       string
 	ControlPlaneURL     string
+	PodName             string
+	PodUID              string
+	ServiceAccount      string
 	LoggerConfig        LoggerConfig
 }
 type LoggerConfig struct {
@@ -44,6 +47,9 @@ func (pc *ProxyConfig) Load() {
 	pc.CACertPath = os.Getenv("CA_CERT_PATH")
 	pc.TrustedDomain = os.Getenv("SPIFFE_TRUSTED_DOMAIN")
 	pc.KubernetesNamespace = os.Getenv("KUBERNETES_NAMESPACE")
+	pc.PodName = os.Getenv("POD_NAME")
+	pc.PodUID = os.Getenv("POD_UID")
+	pc.ServiceAccount = os.Getenv("SERVICE_ACCOUNT")
 
 	if port := os.Getenv("INBOUND_PORT"); port != "" {
 		if p, err := strconv.Atoi(port); err == nil {
@@ -73,5 +79,14 @@ func (pc *ProxyConfig) Load() {
 	}
 	if pc.TrustedDomain == "" {
 		pc.TrustedDomain = "cluster.local"
+	}
+	if pc.PodName == "" {
+		pc.PodName = "unknown-pod"
+	}
+	if pc.PodUID == "" {
+		pc.PodUID = "unknown-pod-uid"
+	}
+	if pc.ServiceAccount == "" {
+		pc.ServiceAccount = pc.ServiceName
 	}
 }

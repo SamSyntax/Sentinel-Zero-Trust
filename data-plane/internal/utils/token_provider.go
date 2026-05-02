@@ -7,6 +7,7 @@ import (
 
 	authv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -21,20 +22,32 @@ type RealTokenProvider struct {
 }
 
 type TokenProvider interface {
-	RequestToken(namespace, serviceAccount string) (ServiceAccountToken, error)
+	RequestToken(namespace, serviceAccount, podName, podUID string) (ServiceAccountToken, error)
 }
 
 func NewRealTokenProvider(cs *kubernetes.Clientset) *RealTokenProvider {
 	return &RealTokenProvider{Clientset: cs}
 }
 
-func (tp *RealTokenProvider) RequestToken(namespace, serviceAccount string) (ServiceAccountToken, error) {
+func (tp *RealTokenProvider) RequestToken(namespace, serviceAccount, podName, podUID string) (ServiceAccountToken, error) {
 	ctx := context.Background()
 	expirationSeconds := int64(60 * 60) // 1 hour
+	// tokenRequest := &authv1.TokenRequest{
+	// 	Spec: authv1.TokenRequestSpec{
+	// 		Audiences:         []string{"api"},
+	// 		ExpirationSeconds: &expirationSeconds,
+	// 	},
+	// }
 	tokenRequest := &authv1.TokenRequest{
 		Spec: authv1.TokenRequestSpec{
 			Audiences:         []string{"api"},
 			ExpirationSeconds: &expirationSeconds,
+			BoundObjectRef: &authv1.BoundObjectReference{
+				Kind:       "Pod",
+				APIVersion: "v1",
+				Name:       podName,
+				UID:        types.UID(podUID),
+			},
 		},
 	}
 

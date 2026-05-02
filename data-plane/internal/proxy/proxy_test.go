@@ -167,7 +167,7 @@ type mockTokenProvider struct {
 	errors    []error
 }
 
-func (m *mockTokenProvider) RequestToken(namespace, serviceAccount string) (utils.ServiceAccountToken, error) {
+func (m *mockTokenProvider) RequestToken(namespace, serviceAccount, podName, podUID string) (utils.ServiceAccountToken, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	idx := m.callCount
@@ -263,8 +263,11 @@ func newTestConfig(t *testing.T, caPath string) config.ProxyConfig {
 	return config.ProxyConfig{
 		ProxyPort:           0,
 		ServiceName:         "test-sa",
+		ServiceAccount:      "test-sa",
 		KubernetesNamespace: "default",
 		CACertPath:          caPath,
+		PodName:             "test-pod",
+		PodUID:              "test-pod-uid",
 		TrustedDomain:       "cluster.local",
 		TargetURL:           "http://localhost:9090",
 	}

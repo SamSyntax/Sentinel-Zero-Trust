@@ -67,7 +67,12 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, fetcher grpc.CertFetc
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	token, err := tokenProvider.RequestToken(cfg.KubernetesNamespace, cfg.ServiceName)
+	serviceAccount := cfg.ServiceAccount
+	if serviceAccount == "" {
+		serviceAccount = cfg.ServiceName
+	}
+
+	token, err := tokenProvider.RequestToken(cfg.KubernetesNamespace, serviceAccount, cfg.PodName, cfg.PodUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service account token: %w", err)
 	}
@@ -94,7 +99,7 @@ func NewProxy(ctx context.Context, cfg config.ProxyConfig, fetcher grpc.CertFetc
 		RenewalWindow: 5 * time.Minute,
 		RenewNow:      make(chan struct{}),
 	}
-	go cm.StartRotation(ctx, fetcher, tokenProvider, tokenContainer, cfg.KubernetesNamespace, cfg.ServiceName, spiffeId, cfg.TargetGRPC, logger)
+	go cm.StartRotation(ctx, fetcher, tokenProvider, tokenContainer, cfg.KubernetesNamespace, cfg.ServiceName, serviceAccount, cfg.PodName, cfg.PodUID, spiffeId, cfg.TargetGRPC, logger)
 	proxy := &Proxy{
 		cfg:         cfg,
 		logger:      logger,

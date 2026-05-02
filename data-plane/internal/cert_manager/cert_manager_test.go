@@ -57,7 +57,7 @@ type mockTokenProvider struct {
 	errors    []error
 }
 
-func (m *mockTokenProvider) RequestToken(namespace, serviceAccount string) (utils.ServiceAccountToken, error) {
+func (m *mockTokenProvider) RequestToken(namespace, serviceAccount, podName, podUID string) (utils.ServiceAccountToken, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	idx := m.callCount
@@ -144,7 +144,7 @@ func TestStartRotation_InitialFetchSuccess(t *testing.T) {
 	cm := &certmanager.CertManager{
 		RetryDelay: 10 * time.Millisecond,
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, serviceName, "test-pod", "test-pod-uid", spiffeId, "localhost:9090", noopLogger())
 	time.Sleep(200 * time.Millisecond)
 	if cm.GetCurrentCertificate() == nil {
 		t.Error("expected certificate to be set after initial fetch")
@@ -178,7 +178,7 @@ func TestStartRotation_InitialFetchRetriesOnError(t *testing.T) {
 	cm := &certmanager.CertManager{
 		RetryDelay: 10 * time.Millisecond,
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, serviceName, "test-pod", "test-pod-uid", spiffeId, "localhost:9090", noopLogger())
 	time.Sleep(61 * time.Millisecond)
 
 	if cm.GetCurrentCertificate() == nil {
@@ -211,7 +211,7 @@ func TestStartRotation_RotateCertWhenNearExpiry(t *testing.T) {
 		RenewalWindow: 200 * time.Millisecond,
 		RenewNow:      make(chan struct{}, 1),
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, serviceName, "test-pod", "test-pod-uid", spiffeId, "localhost:9090", noopLogger())
 	time.Sleep(50 * time.Millisecond)
 	cm.RenewNow <- struct{}{}
 	time.Sleep(50 * time.Millisecond)
@@ -237,7 +237,7 @@ func TestStartRotation_StopsOnContextCancel(t *testing.T) {
 	cm := &certmanager.CertManager{
 		RetryDelay: 10 * time.Millisecond,
 	}
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, serviceName, "test-pod", "test-pod-uid", spiffeId, "localhost:9090", noopLogger())
 	time.Sleep(200 * time.Millisecond)
 	cancel()
 	time.Sleep(200 * time.Millisecond)
@@ -278,7 +278,7 @@ func TestStartRotation_NoPanicWhenCertAlreadySet(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+		cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, serviceName, "test-pod", "test-pod-uid", spiffeId, "localhost:9090", noopLogger())
 	}()
 
 	// Give the goroutine time to enter the loop and reach the
@@ -321,7 +321,7 @@ func TestStartRotation_ConcurrentGetDuringRotation(t *testing.T) {
 		RenewNow:      make(chan struct{}, 1),
 	}
 
-	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+	go cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, serviceName, "test-pod", "test-pod-uid", spiffeId, "localhost:9090", noopLogger())
 
 	var wg sync.WaitGroup
 	for range 200 {
@@ -370,7 +370,7 @@ func TestStartRotation_RenewNowWithExistingCert(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+		cm.StartRotation(ctx, fetcher, provider, token, "default", serviceName, serviceName, "test-pod", "test-pod-uid", spiffeId, "localhost:9090", noopLogger())
 	}()
 
 	// Wait for the goroutine to reach the select/sleep, then poke it.
@@ -406,7 +406,7 @@ func TestStartRotation_NilTokenContainerRetries(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		cm.StartRotation(ctx, fetcher, provider, nil, "default", serviceName, spiffeId, "localhost:9090", noopLogger())
+		cm.StartRotation(ctx, fetcher, provider, nil, "default", serviceName, serviceName, "test-pod", "test-pod-uid", spiffeId, "localhost:9090", noopLogger())
 	}()
 
 	// Let it spin on the nil-token retry path a few times.
