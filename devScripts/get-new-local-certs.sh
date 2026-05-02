@@ -31,7 +31,7 @@ fi
 
 echo "$RESPONSE" | jq -r '.certificate' >"$CERT_DIR/client.crt"
 echo "$RESPONSE" | jq -r '.privateKey' >"$CERT_DIR/client.key"
-echo "$RESPONSE" | jq -r '.issuingCa' >"$CERT_DIR/root_ca.crt"
+echo "$RESPONSE" | jq -r '.issuingCa' >"$CERT_DIR/issuing_ca.crt"
 
 echo "Success! Certificates saved to $CERT_DIR"
 ls -l "$CERT_DIR"

@@ -109,8 +109,9 @@ public class SidecarInjectionWebhook {
             "  {\"name\": \"CONTROL_PLANE_URL\", \"value\": \"" + controlPlaneUrl + "/api/v1/identity/issue\"}, " +
             "  {\"name\": \"TARGET_GRPC\", \"value\": \"" + targetGrpc + "\"}, " +
             "  {\"name\": \"TARGET_URL\", \"value\": \"" + targetUrl + "\"}, " +
-            "  {\"name\": \"PROXY_MODE\", \"value\": \"tproxy\"}, " + // <-- Change to tproxy
+            "  {\"name\": \"PROXY_MODE\", \"value\": \"tproxy\"}, " + 
             "  {\"name\": \"POD_NAME\", \"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"metadata.name\"}}}, " +
+            "  {\"name\": \"POD_UID\", \"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"metadata.uid\"}}}, " +
             "  {\"name\": \"KUBERNETES_NAMESPACE\", \"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"metadata.namespace\"}}}, "
             +
             "  {\"name\": \"SERVICE_ACCOUNT\", \"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"spec.serviceAccountName\"}}}, "
