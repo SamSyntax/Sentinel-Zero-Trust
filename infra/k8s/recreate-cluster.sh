@@ -51,7 +51,7 @@ helm upgrade --install control-plane "${DIR}/control-plane" \
   --wait
 
 # echo "Registering Sidecar Injection webhook..."
-# export CA_BUNDLE=$(cat "${PROJECT_ROOT}/certs/issuing_ca_base64.txt")
+# export CA_BUNDLE=$(cat "${PROJECT_ROOT}/certs/root_ca_base64.txt")
 # envsubst < "${DIR}/control-plane/webhook-registration.yaml" | kubectl apply -f -
 
 kubectl label namespace default sentinel-zt.io/injection=enabled --overwrite

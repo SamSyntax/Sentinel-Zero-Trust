@@ -31,11 +31,13 @@ kubectl exec vault-0 -- sh -c "
     allow_any_name=true \
     max_ttl=\"24h\" \
     generate_lease=true
+
+  vault read -field=certificate pki/cert/ca > /tmp/current_root_ca.crt
 "
 
 echo "Extracting Root CA and creating Kubernetes Secret"
 mkdir -p certs
-kubectl cp vault-0:/tmp/root_ca.crt ./certs/root_ca.crt
+kubectl cp vault-0:/tmp/current_root_ca.crt ./certs/root_ca.crt
 
 kubectl create secret generic sentinel-root-ca \
   --from-file=root_ca.crt=./certs/root_ca.crt \
