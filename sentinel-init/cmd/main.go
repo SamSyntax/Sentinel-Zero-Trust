@@ -110,11 +110,16 @@ func buildTProxyRules() []string {
 
 	rules = append(rules, fmt.Sprintf("iptables -t nat -A SENTINEL_OUTPUT -m owner --uid-owner %d -j RETURN", *proxyUID))
 
-	// Add default exclusions for health check ports BEFORE TPROXY
-	// Health checks should bypass the proxy and go directly to the app
-	defaultExcludePorts := []string{*servicePort, "443", "9090"}
-	for _, port := range defaultExcludePorts {
+	// Inbound traffic should go through the proxy. The service port is excluded only
+	// from OUTPUT to allow local health checks and localhost app traffic to bypass
+	// redirection without weakening inbound mTLS enforcement.
+	inboundExcludePorts := []string{"443", "9090"}
+	for _, port := range inboundExcludePorts {
 		rules = append(rules, fmt.Sprintf("iptables -t mangle -A SENTINEL_INBOUND -p tcp --dport %s -j RETURN", port))
+	}
+
+	outboundExcludePorts := []string{*servicePort, "443", "9090"}
+	for _, port := range outboundExcludePorts {
 		rules = append(rules, fmt.Sprintf("iptables -t nat -A SENTINEL_OUTPUT -p tcp --dport %s -j RETURN", port))
 	}
 
@@ -154,20 +159,26 @@ func buildRedirectRules() []string {
 	rules = append(rules, "iptables -t nat -N SENTINEL_OUTPUT")
 	rules = append(rules, "iptables -t nat -N SENTINEL_IN_REDIRECT")
 
+	defaultExcludePorts := []string{"9090"}
+	for _, port := range defaultExcludePorts {
+		rules = append(rules, fmt.Sprintf("iptables -t nat -A SENTINEL_OUTPUT -p tcp --dport %s -j RETURN", port))
+	}
+
 	for port := range strings.SplitSeq(*excludePorts, ",") {
 		if port == "" {
 			continue
 		}
 
-		rules = append(rules, fmt.Sprintf("iptables -t nat -A SENTINEL_INBOUND -p tcp --dport %s -j RETURN", port))
 		rules = append(rules, fmt.Sprintf("iptables -t nat -A SENTINEL_OUTPUT -p tcp --dport %s -j RETURN", port))
 
 	}
 	rules = append(rules, "iptables -t nat -A PREROUTING -p tcp -j SENTINEL_INBOUND")
+	rules = append(rules, "iptables -t nat -A OUTPUT -p tcp -j SENTINEL_OUTPUT")
 	rules = append(rules, "iptables -t nat -A SENTINEL_INBOUND -p tcp -j SENTINEL_IN_REDIRECT")
 	rules = append(rules, fmt.Sprintf("iptables -t nat -A SENTINEL_IN_REDIRECT -p tcp -j REDIRECT --to-ports %d", *inboundPort))
 	rules = append(rules, fmt.Sprintf("iptables -t nat -A SENTINEL_OUTPUT -m owner --uid-owner %d -j RETURN", *proxyUID))
 	rules = append(rules, "iptables -t nat -A SENTINEL_OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN")
+
 	rules = append(rules, "iptables -t nat -A SENTINEL_OUTPUT -j SENTINEL_REDIRECT")
 	rules = append(rules, fmt.Sprintf("iptables -t nat -A SENTINEL_REDIRECT -p tcp -j REDIRECT --to-ports %d", *outboundPort))
 

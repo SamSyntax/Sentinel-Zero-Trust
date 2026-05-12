@@ -87,17 +87,17 @@ public class SidecarInjectionWebhook {
 
         String initContainer = "{" +
             "\"name\": \"sentinel-init\", " +
-            "\"image\": \"localhost:30500/sentinel-init:latest\", " +
+            "\"image\": \"localhost:30500/sentinel-init:redirectfix\", " +
             "\"imagePullPolicy\": \"Always\", " +
             "\"securityContext\": {" +
             "  \"capabilities\": {\"add\": [\"NET_ADMIN\", \"NET_RAW\"]}" +
             "}, " +
-            "\"args\": [\"--mode\", \"TPROXY\", \"--inboundPort\", \"15006\", \"--outboundPort\", \"15001\", \"--servicePort\", \"" + portAnnotation + "\"]" +
+            "\"args\": [\"--mode\", \"REDIRECT\", \"--inboundPort\", \"15006\", \"--outboundPort\", \"15001\", \"--servicePort\", \"" + portAnnotation + "\"]" +
             "}";
 
         String sidecarContainer = "{" +
             "\"name\": \"sentinel-proxy\", " +
-            "\"image\": \"localhost:30500/sentinel-data-plane:latest\", " +
+            "\"image\": \"localhost:30500/sentinel-data-plane:redirectfix\", " +
             "\"imagePullPolicy\": \"Always\", " +
             "\"ports\": [" +
             "  {\"containerPort\": 15006, \"name\": \"http-sentinel\"}," +
@@ -109,7 +109,7 @@ public class SidecarInjectionWebhook {
             "  {\"name\": \"CONTROL_PLANE_URL\", \"value\": \"" + controlPlaneUrl + "/api/v1/identity/issue\"}, " +
             "  {\"name\": \"TARGET_GRPC\", \"value\": \"" + targetGrpc + "\"}, " +
             "  {\"name\": \"TARGET_URL\", \"value\": \"" + targetUrl + "\"}, " +
-            "  {\"name\": \"PROXY_MODE\", \"value\": \"tproxy\"}, " + 
+            "  {\"name\": \"PROXY_MODE\", \"value\": \"redirect\"}, " + 
             "  {\"name\": \"POD_NAME\", \"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"metadata.name\"}}}, " +
             "  {\"name\": \"POD_UID\", \"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"metadata.uid\"}}}, " +
             "  {\"name\": \"KUBERNETES_NAMESPACE\", \"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"metadata.namespace\"}}}, "
@@ -121,6 +121,7 @@ public class SidecarInjectionWebhook {
             "], " +
             // Need CAP_NET_ADMIN capability for the proxy container in TPROXY mode
             "\"securityContext\": {" +
+            "  \"runAsUser\": 1337, " +
             "  \"capabilities\": {\"add\": [\"NET_ADMIN\"]}" +
             "}, " +
             "\"volumeMounts\": [" +

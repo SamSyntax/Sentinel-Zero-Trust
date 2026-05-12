@@ -6,7 +6,7 @@ metadata:
   labels:
     app: users-service
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: users-service
@@ -48,15 +48,3 @@ spec:
           envFrom:
             - secretRef:
                 name: users-service-secret
-          livenessProbe:
-            httpGet:
-              path: /api/health
-              port: 3005
-            initialDelaySeconds: 2
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /api/health
-              port: 3005
-            initialDelaySeconds: 2
-            periodSeconds: 10

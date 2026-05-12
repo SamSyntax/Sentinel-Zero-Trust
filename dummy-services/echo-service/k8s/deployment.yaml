@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-service
+  namespace: echo-service
+  labels:
+    app: echo-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-service
+  template:
+    metadata:
+      labels:
+        app: echo-service
+      annotations:
+        sentinel-zt.io/inject: "true"
+        sentinel-zt.io/service-name: "echo-service"
+        sentinel-zt.io/target-port: "3010"
+    spec:
+      serviceAccountName: echo-service
+      containers:
+        - name: api
+          image: localhost:30500/echo-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3010
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "32Mi"
+            limits:
+              cpu: "150m"
+              memory: "128Mi"
+          envFrom:
+            - secretRef:
+                name: echo-service-secret

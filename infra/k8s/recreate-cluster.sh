@@ -60,7 +60,9 @@ echo "Building and pushing sentinel-init image..."
 cd "${DIR}/../../sentinel-init"
 docker build -t kind.local/sentinel-init:latest .
 docker tag kind.local/sentinel-init:latest "${REGISTRY}/sentinel-init:latest"
+docker tag kind.local/sentinel-init:latest "${REGISTRY}/sentinel-init:redirectfix"
 docker push "${REGISTRY}/sentinel-init:latest"
+docker push "${REGISTRY}/sentinel-init:redirectfix"
 cd "${PROJECT_ROOT}"
 
 echo "Building and pushing users-service image..."
@@ -68,6 +70,13 @@ cd "${PROJECT_ROOT}/dummy-services/users-service"
 docker build -t users-service:latest .
 docker tag users-service:latest "${REGISTRY}/users-service:latest"
 docker push "${REGISTRY}/users-service:latest"
+cd "${PROJECT_ROOT}"
+
+echo "Building and pushing echo-service image..."
+cd "${PROJECT_ROOT}/dummy-services/echo-service"
+docker build -t echo-service:latest .
+docker tag echo-service:latest "${REGISTRY}/echo-service:latest"
+docker push "${REGISTRY}/echo-service:latest"
 cd "${PROJECT_ROOT}"
 
 echo "Deploying PostgreSQL..."
@@ -81,9 +90,19 @@ kubectl create secret generic sentinel-root-ca \
   --dry-run=client --namespace=users-service -o yaml | kubectl apply -f -
 kubectl -n users-service apply -f "${PROJECT_ROOT}/dummy-services/users-service/k8s/"
 
+echo "Deploying echo-service..."
+kubectl create namespace echo-service --dry-run=client -o yaml | kubectl apply -f -
+kubectl label namespace echo-service sentinel-zt.io/injection=enabled --overwrite
+kubectl create secret generic sentinel-root-ca \
+  --from-file=root_ca.crt="${PROJECT_ROOT}/certs/root_ca.crt" \
+  --dry-run=client --namespace=echo-service -o yaml | kubectl apply -f -
+kubectl -n echo-service apply -f "${PROJECT_ROOT}/dummy-services/echo-service/k8s/"
+
 echo "Building and pushing sentinel-data-plane image"
 docker build -t "${REGISTRY}/sentinel-data-plane:latest" "${PROJECT_ROOT}/data-plane/"
+docker tag "${REGISTRY}/sentinel-data-plane:latest" "${REGISTRY}/sentinel-data-plane:redirectfix"
 docker push "${REGISTRY}/sentinel-data-plane:latest"
+docker push "${REGISTRY}/sentinel-data-plane:redirectfix"
 helm upgrade --install data-plane "${DIR}/data-plane" \
   -n sentinel-data-plane --create-namespace \
   --set service.type=NodePort --set service.nodePort=30443

@@ -71,7 +71,7 @@ spec:
               readOnly: true
           securityContext:
             privileged: true
-            runAsUser: 0
+            runAsUser: 1337
             capabilities:
               add: ["NET_ADMIN"]
       volumes:
