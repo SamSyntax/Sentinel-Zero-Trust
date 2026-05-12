@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -184,6 +185,7 @@ func (p *Proxy) acceptRedirectInboundLoop(ln net.Listener, podIP string, errCh c
 			errCh <- fmt.Errorf("inbound accept error: %w", err)
 			return
 		}
+		p.logger.Info("accepted inbound redirected connection", slog.String("remote_addr", conn.RemoteAddr().String()))
 		go p.handleRedirectedConnection(conn, podIP)
 	}
 }
@@ -245,6 +247,7 @@ func CreateProxyHandler(targetURL *url.URL, l *slog.Logger) http.Handler {
 
 func (p *Proxy) handleRedirectedConnection(conn net.Conn, podIP string) {
 	defer conn.Close()
+	p.logger.Info("forwarded inbound redirected connection", slog.String("remote_addr", conn.RemoteAddr().String()), slog.String("pod_ip", podIP))
 	p.forwardLocalApp(conn)
 }
 
@@ -265,8 +268,12 @@ func (p *Proxy) forwardLocalApp(clientConn net.Conn) {
 			p.logger.Error("failed to connect to app", slog.String("error", err.Error()), slog.String("target", u.Host))
 			return
 		}
+		defer appConn.Close()
 		p.logger.Info("forwarding to local app (TLS terminated)", slog.String("target", u.Host))
-		p.proxyCopy(appConn, tlsConn, u.Host)
+
+		if err := p.proxyInboundHTTPRequests(tlsConn, appConn, u.Host); err != nil {
+			p.logger.Error("inbound HTTP proxy failed", slog.String("target", u.Host), slog.String("error", err.Error()))
+		}
 	} else {
 		appConn, err := net.Dial("tcp", u.Host)
 		if err != nil {
@@ -306,10 +313,10 @@ func (p *Proxy) forwardOutbound(clientConn net.Conn, dst net.Addr) {
 	p.logger.Info("outbound request", slog.String("client_identity", clientIdentity), slog.String("destination", dst.String()))
 
 	outboundTLSConfig := &tls.Config{
-		Certificates: []tls.Certificate{*p.certManager.GetCurrentCertificate()},
-		RootCAs:      p.caCertPool,
+		Certificates:       []tls.Certificate{*p.certManager.GetCurrentCertificate()},
+		RootCAs:            p.caCertPool,
 		InsecureSkipVerify: true,
-		MinVersion:   tls.VersionTLS13,
+		MinVersion:         tls.VersionTLS13,
 	}
 	dialAddr := dst.String()
 	outboundConn, err := tls.Dial("tcp", dialAddr, outboundTLSConfig)
@@ -352,10 +359,10 @@ func (p *Proxy) forwardOutboundPlain(clientConn net.Conn, dst net.Addr) {
 	p.logger.Info("forwarding outbound (plaintext -> mTLS)", slog.String("destination", dst.String()))
 
 	outboundTLSConfig := &tls.Config{
-		Certificates: []tls.Certificate{*p.certManager.GetCurrentCertificate()},
-		RootCAs:      p.caCertPool,
+		Certificates:       []tls.Certificate{*p.certManager.GetCurrentCertificate()},
+		RootCAs:            p.caCertPool,
 		InsecureSkipVerify: true,
-		MinVersion:   tls.VersionTLS13,
+		MinVersion:         tls.VersionTLS13,
 	}
 
 	outboundConn, err := tls.Dial("tcp", dst.String(), outboundTLSConfig)
@@ -365,7 +372,109 @@ func (p *Proxy) forwardOutboundPlain(clientConn net.Conn, dst net.Addr) {
 	}
 	defer outboundConn.Close()
 
-	p.proxyCopy(clientConn, outboundConn, dst.String())
+	if err := p.proxyOutboundHTTPRequests(clientConn, outboundConn, dst.String()); err != nil {
+		p.logger.Error("outbound HTTP proxy failed", slog.String("destination", dst.String()), slog.String("error", err.Error()))
+	}
+}
+
+func (p *Proxy) proxyInboundHTTPRequests(clientConn *tls.Conn, appConn net.Conn, target string) error {
+	clientReader := bufio.NewReader(clientConn)
+	appReader := bufio.NewReader(appConn)
+
+	clientIdentity := "unknown"
+	if state := clientConn.ConnectionState(); len(state.PeerCertificates) > 0 {
+		clientIdentity = ExtractIdentity(state.PeerCertificates[0])
+	}
+
+	for {
+		req, err := http.ReadRequest(clientReader)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		p.logger.Info("inbound HTTP request",
+			slog.String("client_identity", clientIdentity),
+			slog.String("method", req.Method),
+			slog.String("path", req.URL.Path),
+			slog.String("target", target),
+		)
+
+		req.RequestURI = ""
+		if err := req.Write(appConn); err != nil {
+			return err
+		}
+
+		resp, err := http.ReadResponse(appReader, req)
+		if err != nil {
+			return err
+		}
+
+		p.logger.Info("inbound HTTP response",
+			slog.String("client_identity", clientIdentity),
+			slog.Int("status", resp.StatusCode),
+			slog.String("target", target),
+		)
+
+		if err := resp.Write(clientConn); err != nil {
+			resp.Body.Close()
+			return err
+		}
+		resp.Body.Close()
+
+		if req.Close || resp.Close {
+			return nil
+		}
+	}
+}
+
+func (p *Proxy) proxyOutboundHTTPRequests(clientConn net.Conn, outboundConn net.Conn, destination string) error {
+	clientReader := bufio.NewReader(clientConn)
+	outboundReader := bufio.NewReader(outboundConn)
+
+	for {
+		req, err := http.ReadRequest(clientReader)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		p.logger.Info("outbound HTTP request",
+			slog.String("method", req.Method),
+			slog.String("path", req.URL.Path),
+			slog.String("host", req.Host),
+			slog.String("destination", destination),
+		)
+
+		req.RequestURI = ""
+		if err := req.Write(outboundConn); err != nil {
+			return err
+		}
+
+		resp, err := http.ReadResponse(outboundReader, req)
+		if err != nil {
+			return err
+		}
+
+		p.logger.Info("outbound HTTP response",
+			slog.Int("status", resp.StatusCode),
+			slog.String("destination", destination),
+		)
+
+		if err := resp.Write(clientConn); err != nil {
+			resp.Body.Close()
+			return err
+		}
+		resp.Body.Close()
+
+		if req.Close || resp.Close {
+			return nil
+		}
+	}
 }
 
 func (p *Proxy) proxyCopy(dst, src net.Conn, name string) {
@@ -395,6 +504,7 @@ func (p *Proxy) proxyCopy(dst, src net.Conn, name string) {
 		}
 		src.Close()
 	}()
+	p.logger.Info("accepted outbound redirected connection", slog.String("name", name), slog.String("remote_addr", src.RemoteAddr().String()))
 	wg.Wait()
 }
 
@@ -466,6 +576,7 @@ func (p *Proxy) acceptTProxyInboundLoop(ln net.Listener, podIP string, errCh cha
 			errCh <- fmt.Errorf("inbound accept error: %w", err)
 			return
 		}
+		p.logger.Debug("accepted inbound TPROXY connection", slog.String("remote_addr", conn.RemoteAddr().String()))
 		go p.handleTProxyConnection(conn, podIP)
 	}
 }
@@ -552,10 +663,10 @@ func (p *Proxy) forwardOutboundTProxy(clientConn *tls.Conn, dst net.Addr, client
 		slog.String("destination", dst.String()))
 
 	outboundTLSConfig := &tls.Config{
-		Certificates: []tls.Certificate{*p.certManager.GetCurrentCertificate()},
-		RootCAs:      p.caCertPool,
+		Certificates:       []tls.Certificate{*p.certManager.GetCurrentCertificate()},
+		RootCAs:            p.caCertPool,
 		InsecureSkipVerify: true,
-		MinVersion:   tls.VersionTLS13,
+		MinVersion:         tls.VersionTLS13,
 	}
 
 	dialAddr := dst.String()

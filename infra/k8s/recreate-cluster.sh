@@ -103,9 +103,9 @@ docker build -t "${REGISTRY}/sentinel-data-plane:latest" "${PROJECT_ROOT}/data-p
 docker tag "${REGISTRY}/sentinel-data-plane:latest" "${REGISTRY}/sentinel-data-plane:redirectfix"
 docker push "${REGISTRY}/sentinel-data-plane:latest"
 docker push "${REGISTRY}/sentinel-data-plane:redirectfix"
-helm upgrade --install data-plane "${DIR}/data-plane" \
-  -n sentinel-data-plane --create-namespace \
-  --set service.type=NodePort --set service.nodePort=30443
+# helm upgrade --install data-plane "${DIR}/data-plane" \
+#   -n sentinel-data-plane --create-namespace \
+#   --set service.type=NodePort --set service.nodePort=30443
 
 # echo "Deploying ArgoCD..."
 # kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
