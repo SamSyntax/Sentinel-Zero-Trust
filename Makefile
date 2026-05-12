@@ -45,7 +45,9 @@ build-control-plane-image:
 
 build-data-plane-image: build-init-image
 	docker build -t "$(REGISTRY)/sentinel-data-plane:latest" data-plane/
+	docker tag "$(REGISTRY)/sentinel-data-plane:latest" "$(REGISTRY)/sentinel-data-plane:redirectfix"
 	docker push "$(REGISTRY)/sentinel-data-plane:latest"
+	docker push "$(REGISTRY)/sentinel-data-plane:redirectfix"
 	helm upgrade --install data-plane infra/k8s/data-plane \
   -n sentinel-data-plane --create-namespace \
   --set serviceAccount.create=true --set service.type=NodePort --set service.nodePort=30443
@@ -54,10 +56,13 @@ build-data-plane-image: build-init-image
 build-init-image:
 	$(MAKE) -C $(INIT_CONTAINER_BUILD_DIR) build-docker -j $(nproc)
 	docker tag kind.local/sentinel-init:latest "$(REGISTRY)/sentinel-init:latest"
+	docker tag kind.local/sentinel-init:latest "$(REGISTRY)/sentinel-init:redirectfix"
 	docker push "$(REGISTRY)/sentinel-init:latest"
+	docker push "$(REGISTRY)/sentinel-init:redirectfix"
 
 build-dummy-services:
-	dummy-services/users-service/k8s/deploy.sh
+	bash dummy-services/users-service/k8s/deploy.sh
+	bash dummy-services/echo-service/k8s/deploy.sh
 
 build-images: build-control-plane-image build-data-plane-image build-dummy-services
 
