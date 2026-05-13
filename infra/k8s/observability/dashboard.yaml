@@ -28,52 +28,86 @@ data:
       "liveNow": false,
       "panels": [
         {
-          "title": "Data Plane: mTLS Error Rate",
-          "type": "timeseries",
-          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+          "title": "Data Plane: mTLS Failures",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "Loki" },
-              "expr": "sum(count_over_time({container=\"proxy\"} | json | level=\"ERROR\" [5m]))",
-              "legendFormat": "Errors (Proxy)",
+              "expr": "sum(count_over_time({container=\"sentinel-proxy\"} | json | level=\"ERROR\" | msg=~\"failed to establish outbound mTLS|TLS handshake failed.*|no client certificate provided|inbound connection is not TLS.*\" [$__range])) or vector(0)",
+              "legendFormat": "mTLS failures",
               "refId": "A"
             }
           ],
           "fieldConfig": {
             "defaults": {
-              "unit": "reqps",
-              "color": { "mode": "fixed", "fixedColor": "red" }
+              "unit": "short",
+              "color": { "mode": "fixed", "fixedColor": "red" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 1 }
+                ]
+              }
             }
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
           }
         },
         {
-          "title": "Control Plane: Vault Status",
-          "type": "timeseries",
-          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+          "title": "Control Plane: Certificate Issuance",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "Loki" },
-              "expr": "sum(count_over_time({container=\"java-api\"} | json | level=\"INFO\" [1m]))",
+              "expr": "sum(count_over_time({container=\"sentinel-control-plane\"} | json | message=~\"Certificate issued successfully.*\" [$__range])) or vector(0)",
               "legendFormat": "Cert Issued",
               "refId": "A"
             },
             {
               "datasource": { "type": "loki", "uid": "Loki" },
-              "expr": "sum(count_over_time({container=\"java-api\"} | json | level=\"ERROR\" [1m]))",
-              "legendFormat": "Vault Fail",
+              "expr": "sum(count_over_time({container=\"sentinel-control-plane\"} | json | message=~\"Certificate issuance failed.*\" [$__range])) or vector(0)",
+              "legendFormat": "Issue Failed",
               "refId": "B"
             }
-          ]
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          }
         },
         {
-          "title": "Rotation Latency (P99)",
+          "title": "Rotation Latency (P95, 15m)",
           "type": "timeseries",
-          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+          "gridPos": { "h": 5, "w": 24, "x": 0, "y": 4 },
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "Loki" },
-              "expr": "quantile_over_time(0.99, {container=\"proxy\"} | json | msg=\"rotating certificate\" | unwrap duration_nanoseconds(`duration`) [5m])",
-              "legendFormat": "P99 Latency",
+              "expr": "quantile_over_time(0.95, {container=\"sentinel-proxy\"} | json | msg=\"certificate rotated successfully\" | unwrap duration [15m]) by (service)",
+              "legendFormat": "{{service}} P95",
               "refId": "A"
             }
           ],
@@ -82,13 +116,47 @@ data:
           }
         },
         {
-          "title": "Live Log Stream",
-          "type": "logs",
-          "gridPos": { "h": 14, "w": 24, "x": 0, "y": 8 },
+          "title": "Certificate Rotation Health",
+          "type": "stat",
+          "gridPos": { "h": 4, "w": 12, "x": 12, "y": 0 },
           "targets": [
             {
               "datasource": { "type": "loki", "uid": "Loki" },
-              "expr": "{container=~\"java-api|proxy\"} | json",
+              "expr": "sum(count_over_time({container=\"sentinel-proxy\"} | json | msg=\"certificate rotated successfully\" [$__range])) by (service)",
+              "legendFormat": "{{service}} rotated",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "expr": "sum(count_over_time({container=\"sentinel-proxy\"} | json | msg=\"certificate rotation failed, will retry\" [$__range])) by (service)",
+              "legendFormat": "{{service}} retry/fail",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short" }
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          }
+        },
+        {
+          "title": "Live Log Stream",
+          "type": "logs",
+          "gridPos": { "h": 18, "w": 24, "x": 0, "y": 9 },
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "Loki" },
+              "expr": "{container=~\"sentinel-control-plane|sentinel-proxy\"} | json",
               "refId": "A"
             }
           ],

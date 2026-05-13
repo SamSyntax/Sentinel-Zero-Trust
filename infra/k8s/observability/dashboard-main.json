@@ -22,52 +22,86 @@
   "links": [],
   "panels": [
     {
-      "title": "Data Plane: mTLS Error Rate",
+      "title": "Data Plane: mTLS Failures",
       "transparent": true,
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "id": 1,
       "fieldConfig": {
         "defaults": {
           "color": { "fixedColor": "red", "mode": "fixed" },
-          "unit": "reqps"
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
         }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
       },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
-          "expr": "sum(count_over_time({container=\"sentinel-proxy\"} | json | level=\"ERROR\" [5m]))",
-          "legendFormat": "Errors (Proxy)",
+          "expr": "sum(count_over_time({container=\"sentinel-proxy\"} | json | level=\"ERROR\" | msg=~\"failed to establish outbound mTLS|TLS handshake failed.*|no client certificate provided|inbound connection is not TLS.*\" [$__range])) or vector(0)",
+          "legendFormat": "mTLS failures",
           "refId": "A"
         }
       ]
     },
     {
-      "title": "Control Plane: Vault Status",
+      "title": "Control Plane: Certificate Issuance",
       "transparent": true,
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "id": 2,
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
-          "expr": "sum(count_over_time({instance=\"control-plane\"} | json | regexp \"eventType=(?P<extracted_event>[^, ]+)\" | extracted_event = \"CERTIFICATE_ISSUED\" [5m]))",
+          "expr": "sum(count_over_time({container=\"sentinel-control-plane\"} | json | message=~\"Certificate issued successfully.*\" [$__range])) or vector(0)",
           "legendFormat": "Cert Issued",
           "refId": "A"
         },
         {
           "datasource": { "type": "loki", "uid": "Loki" },
-          "expr": "sum(count_over_time({container=\"sentinel-control-plane\"} | json | level=\"ERROR\" [1m]))",
-          "legendFormat": "Vault Fail",
+          "expr": "sum(count_over_time({container=\"sentinel-control-plane\"} | json | message=~\"Certificate issuance failed.*\" [$__range])) or vector(0)",
+          "legendFormat": "Issue Failed",
           "refId": "B"
         }
       ]
     },
     {
-      "title": "Rotation Latency (P99)",
+      "title": "Rotation Latency (P95, 15m)",
       "transparent": true,
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 4 },
       "id": 3,
       "fieldConfig": {
         "defaults": { "unit": "ns" }
@@ -75,8 +109,8 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
-          "expr": "max(quantile_over_time(0.99, {container=\"sentinel-proxy\"} | json | msg=\"certificate rotated successfully\" | unwrap duration [1m])) by (container)",
-          "legendFormat": "P99 Latency",
+          "expr": "quantile_over_time(0.95, {container=\"sentinel-proxy\"} | json | msg=\"certificate rotated successfully\" | unwrap duration [15m]) by (service)",
+          "legendFormat": "{{service}} P95",
           "refId": "A"
         }
       ]
@@ -85,7 +119,7 @@
       "title": "Hardware: CPU Usage (Millicores)",
       "transparent": true,
       "type": "timeseries",
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 4 },
       "id": 5,
       "fieldConfig": {
         "defaults": { "unit": "mcore" }
@@ -103,7 +137,7 @@
       "title": "Hardware: Memory Usage (Working Set)",
       "transparent": true,
       "type": "timeseries",
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 4 },
       "id": 6,
       "fieldConfig": {
         "defaults": { "unit": "bytes" }
@@ -118,10 +152,46 @@
       ]
     },
     {
+      "title": "Certificate Rotation Health",
+      "transparent": true,
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 0 },
+      "id": 7,
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "expr": "sum(count_over_time({container=\"sentinel-proxy\"} | json | msg=\"certificate rotated successfully\" [$__range])) by (service)",
+          "legendFormat": "{{service}} rotated",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "expr": "sum(count_over_time({container=\"sentinel-proxy\"} | json | msg=\"certificate rotation failed, will retry\" [$__range])) by (service)",
+          "legendFormat": "{{service}} retry/fail",
+          "refId": "B"
+        }
+      ]
+    },
+    {
       "title": "Live Log Stream",
       "transparent": true,
       "type": "logs",
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 15 },
+      "gridPos": { "h": 18, "w": 24, "x": 0, "y": 9 },
       "id": 4,
       "options": {
         "showTime": true,
