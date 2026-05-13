@@ -7,8 +7,6 @@ REGISTRY="localhost:5000"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${DIR}/../.." && pwd)"
 ARGO_FW_PORT=8081
-REPO_KEY_PATH="/home/sam/.ssh/argocd/argo_key"
-REPO_URL="git@github.com:SamSyntax/Sentinel-Zero-Trust.git"
 
 echo "Deleting Kind Cluster: ${CLUSTER_NAME}"
 kind delete cluster --name "${CLUSTER_NAME}" || true
@@ -79,9 +77,6 @@ docker tag echo-service:latest "${REGISTRY}/echo-service:latest"
 docker push "${REGISTRY}/echo-service:latest"
 cd "${PROJECT_ROOT}"
 
-echo "Deploying PostgreSQL..."
-bash "${PROJECT_ROOT}/dummy-services/psql-k8s/psql-helm.sh" database
-
 echo "Deploying Users Service..."
 kubectl create namespace users-service --dry-run=client -o yaml | kubectl apply -f -
 kubectl label namespace users-service sentinel-zt.io/injection=enabled --overwrite
@@ -111,10 +106,8 @@ docker push "${REGISTRY}/sentinel-data-plane:redirectfix"
 # kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 # kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/master/manifests/install.yaml
 # echo "Waiting for ArgoCD to be ready..."
-# # Wait for the ArgoCD server deployment to be available
 # kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
 #
-# # Now wait for the initial admin secret to be created
 # echo "Waiting for ArgoCD initial admin secret..."
 # until kubectl get secret -n argocd argocd-initial-admin-secret >/dev/null 2>&1; do
 #   echo "Waiting for argocd-initial-admin-secret to be created..."
