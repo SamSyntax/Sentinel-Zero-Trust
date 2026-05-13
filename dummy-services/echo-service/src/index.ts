@@ -2,8 +2,8 @@ const PORT = parseInt(Bun.env.PORT || "3010", 10);
 const HOST = Bun.env.HOST || "0.0.0.0";
 const USERS_SERVICE_URL =
   Bun.env.USERS_SERVICE_URL ||
-  "http://users-service.users-service.svc.cluster.local/api/health";
-const LOOP_INTERVAL_MS = parseInt(Bun.env.LOOP_INTERVAL_MS || "30000", 10);
+  "http://users-service.users-service.svc.cluster.local/api/users";
+const LOOP_INTERVAL_MS = parseInt(Bun.env.LOOP_INTERVAL_MS || "15000", 10);
 
 type LastCheck = {
   at: string;
@@ -70,8 +70,6 @@ async function checkUsersService() {
 setInterval(() => {
   void checkUsersService();
 }, LOOP_INTERVAL_MS);
-
-void checkUsersService();
 
 Bun.serve({
   hostname: HOST,

@@ -7,17 +7,17 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${DIR}/../../../" && pwd)"
 REGISTRY="localhost:5000"
 
-echo "Building users-service image..."
+users "Building users-service image..."
 cd "${PROJECT_ROOT}/dummy-services/users-service"
 docker build -t ${REGISTRY}/users-service:latest .
-docker push localhost:5000/users-service:latest
+docker push ${REGISTRY}/users-service:latest
 cd "${PROJECT_ROOT}"
-kind load docker-image users-service:latest --name "${CLUSTER_NAME}"
+kind load docker-image ${REGISTRY}/users-service:latest --name "${CLUSTER_NAME}" || true
 
-echo "Deploying Users Service..."
+users "Deploying users-service..."
+kubectl create namespace users-service --dry-run=client -o yaml | kubectl apply -f -
+kubectl label namespace users-service sentinel-zt.io/injection=enabled --overwrite
+kubectl create secret generic sentinel-root-ca \
+  --from-file=root_ca.crt="${PROJECT_ROOT}/certs/root_ca.crt" \
+  --dry-run=client --namespace=users-service -o yaml | kubectl apply -f -
 kubectl apply -f "${PROJECT_ROOT}/dummy-services/users-service/k8s/"
-
-echo "${DIR} ---- ${PROJECT_ROOT}"
-helm upgrade --install data-plane "${PROJECT_ROOT}/infra/k8s/data-plane" \
-  -n sentinel-data-plane --create-namespace \
-  --set service.type=NodePort --set service.nodePort=30443
