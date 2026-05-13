@@ -120,6 +120,6 @@ data:
       "schemaVersion": 39,
       "tags": ["sentinel-zt", "kubernetes", "mtls"],
       "timezone": "browser",
-      "title": "Sentinel ZT: Production Health",
+      "title": "Service Mesh Health",
       "uid": "sentinel-zt-prod"
     }

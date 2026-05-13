@@ -144,6 +144,6 @@
     "from": "now-1h",
     "to": "now"
   },
-  "title": "Sentinel ZT: Production Health",
+  "title": "Service Mesh Health",
   "uid": "sentinel-zt-prod"
 }
