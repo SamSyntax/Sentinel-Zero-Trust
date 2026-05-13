@@ -45,7 +45,7 @@ func (pc *ProxyConfig) Load() {
 	pc.TargetGRPC = os.Getenv("TARGET_GRPC")
 	pc.ControlPlaneURL = os.Getenv("CONTROL_PLANE_URL")
 	pc.CACertPath = os.Getenv("CA_CERT_PATH")
-	pc.TrustedDomain = os.Getenv("SPIFFE_TRUSTED_DOMAIN")
+	pc.TrustedDomain = os.Getenv("SPIFFE_TRUST_DOMAIN")
 	pc.KubernetesNamespace = os.Getenv("KUBERNETES_NAMESPACE")
 	pc.PodName = os.Getenv("POD_NAME")
 	pc.PodUID = os.Getenv("POD_UID")

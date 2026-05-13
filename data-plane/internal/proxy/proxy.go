@@ -356,7 +356,7 @@ func (p *Proxy) handleOutboundConnection(clientConn net.Conn, podIP string) {
 }
 
 func (p *Proxy) forwardOutboundPlain(clientConn net.Conn, dst net.Addr) {
-	p.logger.Info("forwarding outbound (plaintext -> mTLS)", slog.String("destination", dst.String()))
+	p.logger.Info("forwarding outbound (plaintext to mTLS)", slog.String("destination", dst.String()))
 
 	outboundTLSConfig := &tls.Config{
 		Certificates:       []tls.Certificate{*p.certManager.GetCurrentCertificate()},
@@ -388,7 +388,8 @@ func (p *Proxy) proxyInboundHTTPRequests(clientConn *tls.Conn, appConn net.Conn,
 
 	for {
 		req, err := http.ReadRequest(clientReader)
-		if err == io.EOF {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			p.logger.DebugContext(p.cfg.LoggerConfig.Context, "inbound HTTP request (EOF)", slog.String("client_identity", clientIdentity))
 			return nil
 		}
 		if err != nil {
@@ -403,11 +404,16 @@ func (p *Proxy) proxyInboundHTTPRequests(clientConn *tls.Conn, appConn net.Conn,
 		)
 
 		req.RequestURI = ""
+		req.Close = true
 		if err := req.Write(appConn); err != nil {
 			return err
 		}
 
 		resp, err := http.ReadResponse(appReader, req)
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			p.logger.DebugContext(p.cfg.LoggerConfig.Context, "inbound HTTP request (EOF)", slog.String("client_identity", clientIdentity))
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -418,15 +424,13 @@ func (p *Proxy) proxyInboundHTTPRequests(clientConn *tls.Conn, appConn net.Conn,
 			slog.String("target", target),
 		)
 
+		resp.Close = true
 		if err := resp.Write(clientConn); err != nil {
 			resp.Body.Close()
 			return err
 		}
 		resp.Body.Close()
-
-		if req.Close || resp.Close {
-			return nil
-		}
+		return nil
 	}
 }
 
@@ -436,7 +440,8 @@ func (p *Proxy) proxyOutboundHTTPRequests(clientConn net.Conn, outboundConn net.
 
 	for {
 		req, err := http.ReadRequest(clientReader)
-		if err == io.EOF {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			p.logger.DebugContext(p.cfg.LoggerConfig.Context, "inbound HTTP request (EOF)", slog.String("remote_addr", clientConn.RemoteAddr().String()))
 			return nil
 		}
 		if err != nil {
@@ -451,6 +456,7 @@ func (p *Proxy) proxyOutboundHTTPRequests(clientConn net.Conn, outboundConn net.
 		)
 
 		req.RequestURI = ""
+		req.Close = true
 		if err := req.Write(outboundConn); err != nil {
 			return err
 		}
@@ -465,15 +471,13 @@ func (p *Proxy) proxyOutboundHTTPRequests(clientConn net.Conn, outboundConn net.
 			slog.String("destination", destination),
 		)
 
+		resp.Close = true
 		if err := resp.Write(clientConn); err != nil {
 			resp.Body.Close()
 			return err
 		}
 		resp.Body.Close()
-
-		if req.Close || resp.Close {
-			return nil
-		}
+		return nil
 	}
 }
 
