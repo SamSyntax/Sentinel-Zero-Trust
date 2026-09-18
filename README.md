@@ -26,7 +26,7 @@
   - [x] Implement Mutating Admission Webhook in Java with idempotency checks.
   - [x] Define injection logic for \`sentinel-proxy\`, \`sentinel-init\`, and volumes.
   - [x] Create K8s \`MutatingWebhookConfiguration\` with namespace exclusions.
-- [ ] **Transparent Redirection** :
+- [x] **Traffic redirection** :
   - [x] Implement \`iptables\` logic in init-container for traffic interception.
 
 ### Phase 2: Production Readiness & Resiliency
