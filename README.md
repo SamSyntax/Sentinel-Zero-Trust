@@ -2,7 +2,7 @@
 
 - **Data Plane (PEP):** Go-based high-performance reverse proxy. Handles TLS termination, Hitless Certificate Rotation, and request forwarding.
 - **Control Plane (PDP):** Java 21 / Spring Boot 3 application. Manages service identities and interacts with the PKI.
-- **Infrastructure (Trust Engine):** HashiCorp Vault (PKI Engine) and Open Policy Agent (OPA) orchestrated via Docker Compose.
+- **Infrastructure (Trust Engine):** HashiCorp Vault (PKI Engine) and Open Policy Agent (OPA) orchestrated via Terraform, Kubernetes and bash bootstrap scripts. Ran and tested locally using [Kind](https://kind.sigs.k8s.io/).
 
 ### Phase 1: Core Zero Trust Identity & Security
 - [x] **Identity Bootstrapping**:
