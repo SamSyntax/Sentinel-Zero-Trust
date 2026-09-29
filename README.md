@@ -1,8 +1,47 @@
-**Sentinel ZT-Proxy** is a Zero Trust Architecture (ZTA) implementation enforcing partial Mutual TLS (mTLS) micro-segmentation between services.
+# Zero Trust Architecture (ZTA) 
+## implementation enforcing partial Mutual TLS (mTLS) micro-segmentation between services.
 
 - **Data Plane (PEP):** Go-based high-performance reverse proxy. Handles TLS termination, Hitless Certificate Rotation, and request forwarding.
 - **Control Plane (PDP):** Java 21 / Spring Boot 3 application. Manages service identities and interacts with the PKI.
 - **Infrastructure (Trust Engine):** HashiCorp Vault (PKI Engine) orchestrated via Terraform, Kubernetes and bash bootstrap scripts. Ran and tested locally using [Kind](https://kind.sigs.k8s.io/).
+
+## Motivation
+
+I created this project for my Bachelor of Engineering degree. I wanted to combine security, programming and DevOps fields, my main goal was to dive deeper into Kubernetes operators, infrastructre and its API, networking, clustering and Kubernetes security. 
+
+## Quick Start
+
+```bash
+git clone https://github.com/SamSyntax/Sentinel-Zero-Trust
+cd Sentinel-Zero-Trust
+```
+```bash
+make recreate-cluster
+```
+
+## Contributing
+
+### Clone the repo
+
+```bash
+git clone https://github.com/SamSyntax/Sentinel-Zero-Trust
+cd Sentinel-Zero-Trust
+```
+
+### Deploy into a local cluster (make sure that GNU Make is installed)
+
+```bash
+make recreate-cluster
+```
+
+## Usage
+
+Kubernetes manifests are placed in the infra directory, most of the actual configuration is set there. This project is meant to be ran locally within a kind cluster.
+
+
+### Submit a pull request
+
+If you'd like to contribute, please fork the repository and open a pull request to the `master` branch.
 
 ### Phase 1: Core Zero Trust Identity & Security
 - [x] **Identity Bootstrapping**:
