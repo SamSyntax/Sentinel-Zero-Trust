@@ -1,5 +1,8 @@
 # Zero Trust Architecture (ZTA) 
-## implementation enforcing partial Mutual TLS (mTLS) micro-segmentation between services.
+
+Kubernetes defaults to a perimeter-based security model where anything inside the network can freely talk to anything else, turning internal service-to-service communication into a trust-by-default blind spot. To solve this, I built a lightweight service mesh that replaces implicit network trust with cryptographic, per-service identity. Using mutating admission webhooks, a sidecar proxy is automatically injected into every pod at creation time, intercepting traffic to enforce mutual TLS without requiring changes to application code.
+
+Each service receives its own verifiable certificate, preventing pods from impersonating one another and ensuring all internal communication is fully encrypted in transit. By moving away from manual log wrangling and open network access, this architecture hardens microservice communication at the transport layer while automating the operational overhead typically required to secure a cluster.
 
 - **Data Plane (PEP):** Go-based high-performance reverse proxy. Handles TLS termination, Hitless Certificate Rotation, and request forwarding.
 - **Control Plane (PDP):** Java 21 / Spring Boot 3 application. Manages service identities and interacts with the PKI.
